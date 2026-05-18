@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Drink POS &amp; BOM System</title>
+  <title>Drink POS &amp; Cloud BOM System</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *{box-sizing:border-box}
     body{background:#020617;color:#cbd5e1;font-family:sans-serif;margin:0;overscroll-behavior:none}
@@ -43,9 +44,16 @@
     ::-webkit-scrollbar{width:4px;height:4px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+    #loading-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.9);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#10b981;font-weight:bold;font-size:1.2rem;}
   </style>
 </head>
 <body>
+
+<div id="loading-overlay">
+  <div style="font-size: 3rem; margin-bottom: 16px; animation: spin 1s linear infinite;">🔄</div>
+  <p>Connecting to Cloud...</p>
+</div>
+<style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
 
 <div id="app" style="display:flex;height:100dvh;width:100vw;overflow:hidden">
   <aside id="sidebar" style="display:flex;flex-direction:column;background:#0f172a;border-right:1px solid #1e293b;width:58px;flex-shrink:0;z-index:20">
@@ -55,7 +63,7 @@
   <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100%;overflow:hidden">
     <header style="height:64px;flex-shrink:0;background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;padding:0 16px;justify-content:space-between">
       <span id="header-title" style="font-weight:700;color:#fff;font-size:1rem"></span>
-      <span style="font-size:.75rem;color:#10b981;background:rgba(16,185,129,.1);padding:4px 10px;border-radius:999px;border:1px solid rgba(16,185,129,.2)">✓ P&amp;L System</span>
+      <span style="font-size:.75rem;color:#10b981;background:rgba(16,185,129,.1);padding:4px 10px;border-radius:999px;border:1px solid rgba(16,185,129,.2)">✓ Cloud Active</span>
     </header>
     <main id="main" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:12px;padding-bottom:80px"></main>
   </div>
@@ -65,25 +73,23 @@
 <div id="modal-container"></div>
 
 <script>
+// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://bxxnockrzvvmwwpjabve.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4eG5vY2tyenZ2bXd3cGphYnZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNzMyOTMsImV4cCI6MjA5NDY0OTI5M30.lbHiUdTEhqxkH9EZUkNhHODo_PxfcTDwNaqG1pJvN90';
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ─── STATE ────────────────────────────────────────────────────────────────────
 var state = {
   active: 'dashboard',
-  ingredients: [
-    {id:1,name:'ใบชาไทย',type:'วัตถุดิบ',unit:'กรัม',stock:2000,costPerUnit:0.18,minStock:500},
-    {id:2,name:'นมข้นหวาน',type:'วัตถุดิบ',unit:'มล.',stock:3500,costPerUnit:0.05,minStock:500},
-    {id:3,name:'นมสด',type:'วัตถุดิบ',unit:'มล.',stock:8000,costPerUnit:0.04,minStock:1000},
-    {id:8,name:'แก้วพลาสติก',type:'แพคเกจจิ้ง',unit:'ชิ้น',stock:450,costPerUnit:2.00,minStock:100},
-  ],
-  recipes: [
-    {id:1,name:'ชาไทยเย็น',price:45,lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:8,qty:1}]},
-  ],
+  ingredients: [],
+  recipes: [],
   adjustments: [],
   orders: [],
   orderType: 'storefront',
   cart: [],
   gpPercent: 30,
   adsDiscount: 0,
-  selectedRecipeId: 1,
+  selectedRecipeId: null,
 };
 
 var UNIT_FAMILIES = {
@@ -99,12 +105,58 @@ var PAGES = [
   {id:'recipe',label:'สูตรอาหาร',icon:'📋'},
 ];
 
+// ─── SUPABASE DATA FETCHING ───────────────────────────────────────────────────
+async function fetchCloudData() {
+  try {
+    // โหลดส่วนผสม
+    const { data: ings } = await supabase.from('ingredients').select('*').order('id');
+    state.ingredients = (ings || []).map(i => ({
+      id: i.id, name: i.name, type: i.type, unit: i.unit, 
+      stock: Number(i.stock), costPerUnit: Number(i.cost_per_unit), minStock: Number(i.min_stock)
+    }));
+
+    // โหลดสูตรอาหารและเส้น BOM
+    const { data: recs } = await supabase.from('recipes').select('*').order('id');
+    const { data: lines } = await supabase.from('recipe_lines').select('*');
+    state.recipes = (recs || []).map(r => ({
+      id: r.id, name: r.name, price: Number(r.price),
+      lines: (lines || []).filter(l => l.recipe_id === r.id).map(l => ({ ingId: l.ing_id, qty: Number(l.qty) }))
+    }));
+
+    if(state.recipes.length > 0 && !state.selectedRecipeId) {
+      state.selectedRecipeId = state.recipes[0].id;
+    }
+
+    // โหลดประวัติออเดอร์
+    const { data: ords } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    state.orders = (ords || []).map(o => ({
+      type: o.type, items: o.items, gross: Number(o.gross), net: Number(o.net), cogs: Number(o.cogs),
+      time: new Date(o.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})
+    }));
+
+    // โหลดประวัติปรับสต็อก
+    const { data: adjs } = await supabase.from('adjustments').select('*').order('created_at', { ascending: false });
+    state.adjustments = (adjs || []).map(a => ({
+      id: a.id, ingName: a.ing_name, type: a.type, qty: Number(a.qty), unit: a.unit, reason: a.reason,
+      date: new Date(a.created_at).toLocaleDateString('th-TH')
+    }));
+
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    alert('เกิดข้อผิดพลาดในการโหลดข้อมูลจาก Cloud ตรวจสอบ URL/KEY ของ Supabase');
+  }
+}
+
+async function refreshView() {
+  await fetchCloudData();
+  render();
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fmtCost(n){return '฿'+Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:4})}
 function fmtDisplay(n){return '฿'+Number(n).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function calcRecipeCost(lines,ings){return lines.reduce(function(s,l){var i=ings.find(function(x){return x.id===l.ingId});return s+(i?i.costPerUnit*Number(l.qty):0)},0)}
 
-// Tiny DOM builder
 function el(tag,props){
   var e=document.createElement(tag);
   if(props) Object.keys(props).forEach(function(k){
@@ -125,13 +177,10 @@ function el(tag,props){
   return e;
 }
 
-function mkField(labelTxt,inputEl,req){
-  return el('div',{cls:'field'},el('label',{txt:labelTxt+(req?'*':'')}),inputEl);
-}
+function mkField(labelTxt,inputEl,req){ return el('div',{cls:'field'},el('label',{txt:labelTxt+(req?'*':'')}),inputEl); }
 
 function mkInp(opts){
-  var e=document.createElement('input');
-  e.className='inp';
+  var e=document.createElement('input'); e.className='inp';
   if(opts){
     if(opts.type)e.type=opts.type;
     if(opts.placeholder)e.placeholder=opts.placeholder;
@@ -142,8 +191,7 @@ function mkInp(opts){
 }
 
 function mkSel(options,value,onChange){
-  var e=document.createElement('select');
-  e.className='inp';
+  var e=document.createElement('select'); e.className='inp';
   options.forEach(function(opt){
     var o=document.createElement('option');
     o.value=opt.value!=null?opt.value:opt.label;
@@ -158,17 +206,14 @@ function mkSel(options,value,onChange){
 var _toastTimer;
 function showToast(msg){
   var t=document.getElementById('toast');
-  t.textContent='✓  '+msg;
-  t.style.display='flex';
+  t.textContent='✓  '+msg; t.style.display='flex';
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(function(){t.style.display='none'},3000);
 }
 
 function closeModal(){document.getElementById('modal-container').innerHTML=''}
-
 function openModal(title,bodyEl){
-  var mc=document.getElementById('modal-container');
-  mc.innerHTML='';
+  var mc=document.getElementById('modal-container'); mc.innerHTML='';
   var bg=el('div',{cls:'modal-bg',onClick:closeModal});
   var box=el('div',{cls:'modal-box',onClick:function(e){e.stopPropagation()}},
     el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1e293b'}},
@@ -177,14 +222,12 @@ function openModal(title,bodyEl){
     ),
     el('div',{cls:'modal-body'},bodyEl)
   );
-  bg.appendChild(box);
-  mc.appendChild(bg);
+  bg.appendChild(box); mc.appendChild(bg);
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
 function buildNav(){
-  var nav=document.getElementById('sidebar-nav');
-  nav.innerHTML='';
+  var nav=document.getElementById('sidebar-nav'); nav.innerHTML='';
   PAGES.forEach(function(p){
     var active=state.active===p.id||(state.active==='stock_adj'&&p.id==='stock');
     var btn=el('button',{
@@ -198,8 +241,7 @@ function buildNav(){
 }
 
 function navigate(id){
-  state.active=id;
-  buildNav();
+  state.active=id; buildNav();
   var titles={dashboard:'Dashboard',pos:'ระบบ POS',stock:'จัดการสต็อก',recipe:'สูตรอาหาร',stock_adj:'ประวัติสต็อก'};
   document.getElementById('header-title').textContent=titles[id]||'';
   render();
@@ -207,8 +249,7 @@ function navigate(id){
 
 // ─── RENDER ROUTER ────────────────────────────────────────────────────────────
 function render(){
-  var main=document.getElementById('main');
-  main.innerHTML='';
+  var main=document.getElementById('main'); main.innerHTML='';
   if(state.active==='dashboard')main.appendChild(renderDashboard());
   else if(state.active==='pos')main.appendChild(renderPOS());
   else if(state.active==='stock')main.appendChild(renderInventory());
@@ -226,7 +267,6 @@ function renderDashboard(){
   var profit=netProfit>=0;
 
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-
   var grid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}});
 
   grid.appendChild(el('div',{cls:'card'},
@@ -257,11 +297,10 @@ function renderDashboard(){
       )
     )
   );
-  grid.appendChild(profitCard);
-  wrap.appendChild(grid);
+  grid.appendChild(profitCard); wrap.appendChild(grid);
 
   var tableCard=el('div',{cls:'card'});
-  tableCard.appendChild(el('div',{cls:'card-head',txt:'ประวัติการขายวันนี้ ('+orders.length+' บิล)'}));
+  tableCard.appendChild(el('div',{cls:'card-head',txt:'ประวัติการขาย ('+orders.length+' บิล)'}));
   if(orders.length===0){
     tableCard.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีออเดอร์',style:{textAlign:'center',color:'#475569',padding:'24px 0',margin:0}})));
   }else{
@@ -285,8 +324,7 @@ function renderDashboard(){
         el('td',{txt:fmtDisplay(op),style:{textAlign:'right',fontWeight:700,color:op>=0?'#10b981':'#f87171'}})
       ));
     });
-    var tbl=el('table',{style:{minWidth:'700px'}},thead,tbody);
-    sw.appendChild(tbl);
+    sw.appendChild(el('table',{style:{minWidth:'700px'}},thead,tbody));
     tableCard.appendChild(sw);
   }
   wrap.appendChild(tableCard);
@@ -301,9 +339,8 @@ function renderPOS(){
   var netRevenue=s.orderType==='delivery'?grossTotal-gpDeduction-s.adsDiscount:grossTotal;
 
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-
-  // Toggle
   var toggle=el('div',{style:{display:'flex',gap:'8px',background:'#0f172a',padding:'8px',borderRadius:'16px',border:'1px solid #1e293b'}});
+  
   ['storefront','delivery'].forEach(function(type){
     var active=s.orderType===type;
     var btn=el('button',{
@@ -317,7 +354,6 @@ function renderPOS(){
   });
   wrap.appendChild(toggle);
 
-  // Menu grid
   var menuGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px'}});
   s.recipes.forEach(function(r){
     var card=el('div',{cls:'card',
@@ -334,7 +370,6 @@ function renderPOS(){
   });
   wrap.appendChild(menuGrid);
 
-  // Cart
   var cartCard=el('div',{cls:'card'});
   cartCard.appendChild(el('div',{cls:'card-head',txt:'ตะกร้าออเดอร์'}));
   var cartBody=el('div',{style:{padding:'8px',minHeight:'60px'}});
@@ -366,7 +401,6 @@ function renderPOS(){
   }
   cartCard.appendChild(cartBody);
 
-  // Footer
   var footer=el('div',{style:{padding:'16px',background:'#020617',borderTop:'1px solid #1e293b',display:'flex',flexDirection:'column',gap:'10px'}});
   footer.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',color:'#94a3b8',fontSize:'.875rem'}},
     el('span',{txt:'ยอดรวมปกติ'}),el('span',{txt:fmtDisplay(grossTotal),style:{color:'#fff'}})
@@ -399,7 +433,7 @@ function renderPOS(){
     txt:'ยืนยัน & ตัดสต็อก',
     cls:'btn btn-emerald',
     style:{width:'100%',fontSize:'1.1rem',minHeight:'52px'},
-    onClick:checkout
+    onClick:checkoutLogic
   });
   if(s.cart.length===0){ckBtn.disabled=true;ckBtn.style.background='#1e293b';ckBtn.style.color='#475569'}
   footer.appendChild(ckBtn);
@@ -420,13 +454,19 @@ function updateQty(id,delta){
   render();
 }
 
-function checkout(){
-  if(state.cart.length===0)return;
+// 📌 LOGIC: Checkout & Update Supabase
+async function checkoutLogic(){
+  if(state.cart.length===0) return;
+  var btn = event.currentTarget;
+  btn.disabled = true;
+  btn.textContent = "กำลังเชื่อมต่อ Cloud...";
+
   var s=state;
   var grossTotal=s.cart.reduce(function(sum,item){return sum+(item.price*item.qty)},0);
   var gpDeduction=s.orderType==='delivery'?grossTotal*(s.gpPercent/100):0;
   var netRevenue=s.orderType==='delivery'?grossTotal-gpDeduction-s.adsDiscount:grossTotal;
-  var stockDed={};var totalCogs=0;
+  var stockDed={}; var totalCogs=0;
+  
   s.cart.forEach(function(cartItem){
     var recipe=s.recipes.find(function(r){return r.id===cartItem.id});
     if(recipe){
@@ -434,14 +474,32 @@ function checkout(){
       recipe.lines.forEach(function(line){stockDed[line.ingId]=(stockDed[line.ingId]||0)+(line.qty*cartItem.qty)});
     }
   });
-  state.ingredients=s.ingredients.map(function(ing){return stockDed[ing.id]?Object.assign({},ing,{stock:Math.max(0,ing.stock-stockDed[ing.id])}):ing});
-  state.orders=[{
-    type:s.orderType,items:s.cart.map(function(i){return i.name+' x'+i.qty}).join(', '),
-    gross:grossTotal,net:netRevenue,cogs:totalCogs,
-    time:new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})
-  }].concat(s.orders);
-  state.cart=[];state.adsDiscount=0;
-  showToast('รับออเดอร์และตัดสต็อกสำเร็จ!');render();
+
+  try {
+    // 1. บันทึก Order
+    await supabase.from('orders').insert([{
+      type: s.orderType, items: s.cart.map(function(i){return i.name+' x'+i.qty}).join(', '),
+      gross: grossTotal, net: netRevenue, cogs: totalCogs
+    }]);
+
+    // 2. ตัดสต็อกวัตถุดิบ (หักลบ)
+    for (var i = 0; i < state.ingredients.length; i++) {
+        var ing = state.ingredients[i];
+        if (stockDed[ing.id]) {
+            var newStock = Math.max(0, ing.stock - stockDed[ing.id]);
+            await supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id);
+        }
+    }
+
+    state.cart=[]; state.adsDiscount=0;
+    showToast('รับออเดอร์และตัดสต็อกบนคลาวด์สำเร็จ!');
+    await refreshView();
+  } catch (err) {
+    console.error(err);
+    alert("เกิดข้อผิดพลาด ไม่สามารถบันทึกออเดอร์ได้");
+    btn.disabled = false;
+    btn.textContent = "ยืนยัน & ตัดสต็อก";
+  }
 }
 
 // ─── INVENTORY ────────────────────────────────────────────────────────────────
@@ -467,7 +525,12 @@ function renderInventory(){
     var td4=el('td',{},stockSpan);if(lowSpan)td4.appendChild(lowSpan);
     var delBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569',padding:'8px',fontSize:'1rem'},
       onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},
-      onClick:function(){state.ingredients=state.ingredients.filter(function(i){return i.id!==ing.id});render()}
+      onClick: async function(){
+        if(confirm('ลบรายการนี้ออกจากฐานข้อมูล?')) {
+            await supabase.from('ingredients').delete().eq('id', ing.id);
+            await refreshView();
+        }
+      }
     });
     tbody.appendChild(el('tr',{},
       el('td',{txt:ing.name,style:{color:'#fff',fontWeight:600}}),
@@ -491,11 +554,16 @@ function openModalAddIng(){
   var sI=mkInp({type:'number',placeholder:'0'});sI.addEventListener('input',function(e){form.stock=e.target.value});
   var mI=mkInp({type:'number',placeholder:'0'});mI.addEventListener('input',function(e){form.minStock=e.target.value});
   var cI=mkInp({type:'number',placeholder:'0.00'});cI.addEventListener('input',function(e){form.costPerUnit=e.target.value});
-  var saveBtn=el('button',{cls:'btn btn-primary',txt:'บันทึกรายการ',style:{width:'100%'},onClick:function(){
+  
+  var saveBtn=el('button',{cls:'btn btn-primary',txt:'บันทึกเข้า Cloud',style:{width:'100%'},onClick: async function(){
     if(!form.name||!form.stock||!form.costPerUnit)return showToast('กรอกข้อมูลให้ครบ');
-    var id=Math.max.apply(null,[0].concat(state.ingredients.map(function(i){return i.id})))+1;
-    state.ingredients.push({id:id,name:form.name,type:form.type,unit:form.unit,stock:Number(form.stock),costPerUnit:Number(form.costPerUnit),minStock:Number(form.minStock||0)});
-    closeModal();showToast('สร้างรายการวัตถุดิบใหม่แล้ว');render();
+    saveBtn.disabled = true;
+    await supabase.from('ingredients').insert([{
+        name: form.name, type: form.type, unit: form.unit,
+        stock: Number(form.stock), cost_per_unit: Number(form.costPerUnit), min_stock: Number(form.minStock||0)
+    }]);
+    closeModal();showToast('สร้างรายการวัตถุดิบใหม่บน Cloud แล้ว');
+    await refreshView();
   }});
   var body=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}},
     mkField('ชื่อรายการ',nI),
@@ -548,19 +616,24 @@ function openModalReceive(){
     }
     qI.addEventListener('input',function(e){form.qty=e.target.value;updatePreview()});
     pI.addEventListener('input',function(e){form.totalPrice=e.target.value;updatePreview()});
-    var saveBtn=el('button',{cls:'btn btn-emerald',txt:'บันทึกรับเข้า & คำนวณคอส',style:{width:'100%'},onClick:function(){
+    
+    var saveBtn=el('button',{cls:'btn btn-emerald',txt:'บันทึกรับเข้า & คำนวณคอส',style:{width:'100%'},onClick: async function(){
       if(!form.ingId||!form.qty||!form.totalPrice)return showToast('กรอกข้อมูลให้ครบ');
+      saveBtn.disabled = true;
       var baseQty=Number(form.qty)*Number(form.mult);
       var rPrice=Number(form.totalPrice);
-      state.ingredients=state.ingredients.map(function(i){
-        if(i.id===Number(form.ingId)){
-          var tv=(i.stock*i.costPerUnit)+rPrice;var nq=i.stock+baseQty;
-          return Object.assign({},i,{stock:nq,costPerUnit:nq>0?tv/nq:0});
-        }return i;
-      });
-      var ingObj=state.ingredients.find(function(i){return i.id===Number(form.ingId)});
-      state.adjustments.unshift({id:Date.now(),ingId:ingObj.id,ingName:ingObj.name,type:'Receive (รับเข้า)',qty:baseQty,unit:ingObj.unit,reason:'ซื้อมา '+form.qty+' '+form.displayUnit+' ในราคา '+rPrice+'บ.',date:new Date().toLocaleDateString('th-TH')});
-      closeModal();showToast('รับเข้า '+ingObj.name+' เรียบร้อย');render();
+      
+      var tv=(ing.stock*ing.costPerUnit)+rPrice; var nq=ing.stock+baseQty;
+      var newCost = nq>0?tv/nq:0;
+
+      await supabase.from('ingredients').update({ stock: nq, cost_per_unit: newCost }).eq('id', ing.id);
+      await supabase.from('adjustments').insert([{
+          ing_id: ing.id, ing_name: ing.name, type: 'Receive (รับเข้า)', qty: baseQty, unit: ing.unit, 
+          reason: 'ซื้อมา '+form.qty+' '+form.displayUnit+' ราคา '+rPrice+'บ.'
+      }]);
+      
+      closeModal();showToast('รับเข้า '+ing.name+' เรียบร้อย');
+      await refreshView();
     }});
     extra.appendChild(el('div',{cls:'grid2',style:{background:'rgba(30,41,59,.3)',padding:'12px',borderRadius:'12px',border:'1px solid rgba(51,65,85,.5)'}},mkField('จำนวนที่ซื้อ *',qI),mkField('หน่วยตอนซื้อ *',uSel)));
     extra.appendChild(mkField('ราคารวมที่จ่ายใบเสร็จ (฿) *',pI));
@@ -614,13 +687,21 @@ function renderStockAdj(){
   }
 
   var rsnI=mkInp({placeholder:'หมายเหตุ (ถ้ามี)'});rsnI.addEventListener('input',function(e){form.reason=e.target.value});
-  var subBtn=el('button',{cls:'btn btn-danger',txt:'ยืนยันการตัดสต็อก',style:{width:'100%'},onClick:function(){
+  var subBtn=el('button',{cls:'btn btn-danger',txt:'ยืนยันการตัดสต็อก',style:{width:'100%'},onClick:async function(){
     if(!form.ingId||!form.qty)return showToast('กรอกข้อมูลให้ครบ');
+    subBtn.disabled = true;
     var ing=state.ingredients.find(function(i){return i.id===Number(form.ingId)});
     var baseQty=Number(form.qty)*Number(form.mult);
-    state.ingredients=state.ingredients.map(function(i){return i.id===ing.id?Object.assign({},i,{stock:Math.max(0,i.stock-baseQty)}):i});
-    state.adjustments.unshift({id:Date.now(),ingId:ing.id,ingName:ing.name,type:form.type,qty:baseQty,unit:ing.unit,reason:form.reason||'ตัดทิ้ง '+form.qty+' '+form.displayUnit,date:new Date().toLocaleDateString('th-TH')});
-    showToast('ตัดสต็อก '+ing.name+' ทิ้งแล้ว');render();
+    var newStock = Math.max(0, ing.stock - baseQty);
+
+    await supabase.from('ingredients').update({ stock: newStock }).eq('id', ing.id);
+    await supabase.from('adjustments').insert([{
+        ing_id: ing.id, ing_name: ing.name, type: form.type, qty: baseQty, unit: ing.unit,
+        reason: form.reason||('ตัดทิ้ง '+form.qty+' '+form.displayUnit)
+    }]);
+
+    showToast('ตัดสต็อก '+ing.name+' ทิ้งแล้ว');
+    await refreshView();
   }});
   fb.append(mkField('ประเภท',typeEl),mkField('เลือกวัตถุดิบ',ingSel2),extra2,mkField('หมายเหตุ',rsnI),subBtn);
   formCard.appendChild(fb);
@@ -649,8 +730,7 @@ function renderStockAdj(){
   }
 
   var grid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:'16px'}});
-  grid.append(formCard,logCard);
-  wrap.appendChild(grid);
+  grid.append(formCard,logCard); wrap.appendChild(grid);
   return wrap;
 }
 
@@ -679,7 +759,7 @@ function renderRecipe(){
 
   var recipe=state.recipes.find(function(r){return r.id===state.selectedRecipeId});
   if(!recipe){
-    wrap.appendChild(el('div',{style:{textAlign:'center',color:'#475569',padding:'32px',border:'1px solid #1e293b',borderRadius:'16px'},txt:'เลือกเมนูเพื่อดูสูตร'}));
+    wrap.appendChild(el('div',{style:{textAlign:'center',color:'#475569',padding:'32px',border:'1px solid #1e293b',borderRadius:'16px'},txt:'เลือกเมนูเพื่อดูสูตร หรือเพิ่มเมนูใหม่'}));
     return wrap;
   }
 
@@ -705,12 +785,17 @@ function renderRecipe(){
     if(!ing)return;
     var qI=el('input',{type:'number',style:{width:'72px',background:'#1e293b',border:'1px solid #334155',borderRadius:'6px',padding:'4px 8px',color:'#fff',fontSize:'.875rem'}});
     qI.value=line.qty;
-    qI.addEventListener('input',function(e){
-      state.recipes=state.recipes.map(function(r){return r.id===recipe.id?Object.assign({},r,{lines:r.lines.map(function(l){return l.ingId===line.ingId?Object.assign({},l,{qty:e.target.value}):l})}):r});
+    qI.addEventListener('change', async function(e){
+      var v = Number(e.target.value);
+      await supabase.from('recipe_lines').update({qty: v}).eq('recipe_id', recipe.id).eq('ing_id', ing.id);
+      await refreshView();
     });
     var delBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569',padding:'8px',fontSize:'1rem'},
       onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},
-      onClick:function(){state.recipes=state.recipes.map(function(r){return r.id===recipe.id?Object.assign({},r,{lines:r.lines.filter(function(l){return l.ingId!==line.ingId})}):r});render()}
+      onClick: async function(){
+        await supabase.from('recipe_lines').delete().eq('recipe_id', recipe.id).eq('ing_id', ing.id);
+        await refreshView();
+      }
     });
     var tdQty=el('td',{},qI,el('span',{txt:' '+ing.unit,style:{color:'#94a3b8',marginLeft:'4px'}}));
     tbody3.appendChild(el('tr',{},
@@ -732,11 +817,13 @@ function openModalNewRecipe(){
   var form={name:'',price:''};
   var nI=mkInp({placeholder:'ชื่อเมนู'});nI.addEventListener('input',function(e){form.name=e.target.value});
   var pI=mkInp({type:'number',placeholder:'0'});pI.addEventListener('input',function(e){form.price=e.target.value});
-  var btn=el('button',{cls:'btn btn-primary',txt:'ยืนยัน',style:{width:'100%'},onClick:function(){
+  var btn=el('button',{cls:'btn btn-primary',txt:'ยืนยันสร้างเมนูบน Cloud',style:{width:'100%'},onClick: async function(){
     if(!form.name)return;
-    var id=Math.max.apply(null,[0].concat(state.recipes.map(function(r){return r.id})))+1;
-    state.recipes.push({id:id,name:form.name,price:Number(form.price||0),lines:[]});
-    state.selectedRecipeId=id;closeModal();showToast('สร้างเมนูใหม่แล้ว');render();
+    btn.disabled = true;
+    const { data } = await supabase.from('recipes').insert([{name: form.name, price: Number(form.price||0)}]).select();
+    if(data && data.length > 0) state.selectedRecipeId = data[0].id;
+    closeModal();showToast('สร้างเมนูใหม่แล้ว');
+    await refreshView();
   }});
   openModal('สร้างเมนูใหม่',el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}},mkField('ชื่อเมนู',nI),mkField('ราคาขาย (฿)',pI),btn));
 }
@@ -749,9 +836,10 @@ function openModalAddIngToRecipe(recipe){
     var btn=el('button',{
       style:{padding:'12px',background:'#1e293b',borderRadius:'12px',border:'none',cursor:'pointer',color:'#fff',fontWeight:600,textAlign:'left',width:'100%',transition:'background .15s'},
       onMouseover:function(){btn.style.background='#293548'},onMouseout:function(){btn.style.background='#1e293b'},
-      onClick:function(){
-        state.recipes=state.recipes.map(function(r){return r.id===recipe.id?Object.assign({},r,{lines:r.lines.concat([{ingId:ing.id,qty:1}])}):r});
-        closeModal();render();
+      onClick: async function(){
+        await supabase.from('recipe_lines').insert([{recipe_id: recipe.id, ing_id: ing.id, qty: 1}]);
+        closeModal();
+        await refreshView();
       }
     },ing.name+' ',el('span',{txt:'('+fmtCost(ing.costPerUnit)+'/'+ing.unit+')',style:{color:'#94a3b8',fontWeight:400,fontSize:'.75rem'}}));
     list.appendChild(btn);
@@ -760,9 +848,14 @@ function openModalAddIngToRecipe(recipe){
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
-buildNav();
-document.getElementById('header-title').textContent='Dashboard';
-render();
+async function bootUp() {
+    buildNav();
+    document.getElementById('header-title').textContent='Dashboard';
+    await fetchCloudData(); // โหลดข้อมูลทั้งหมดจาก Cloud
+    document.getElementById('loading-overlay').style.display = 'none'; // ปิดหน้าจอโหลด
+    render();
+}
+bootUp();
 </script>
 </body>
 </html>
