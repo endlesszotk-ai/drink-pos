@@ -15,24 +15,9 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // ─── ICONS ────────────────────────────────────────────────────────────────────
-        const Icon = {
-          dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
-          pos: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 8h2M7 12h2M11 8h6M11 12h3"/></svg>,
-          stock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8L6 7h12l-2-4zM12 12v3M8 12v3M16 12v3"/></svg>,
-          recipe: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>,
-          plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M12 5v14M5 12h14"/></svg>,
-          minus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M5 12h14"/></svg>,
-          edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-          trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
-          x: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M18 6L6 18M6 6l12 12"/></svg>,
-          check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>,
-          back: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>,
-          inbox: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>,
-          trendUp: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
-          trendDown: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
-        };
-
+        // ─── EMOJI ICONS (ลดขนาดไฟล์แทนการใช้ SVG) ──────────────────────────────────
+        const Icon = { dashboard: "📊", pos: "🖥️", stock: "📦", recipe: "📝", plus: "➕", minus: "➖", trash: "🗑️", x: "❌", check: "✅", back: "◀️", inbox: "📥", trendUp: "📈", trendDown: "📉" };
+        
         const SIDEBAR_ITEMS = [
           { id: "dashboard", label: "Dashboard",   icon: Icon.dashboard },
           { id: "pos",       label: "ระบบ POS",    icon: Icon.pos },
@@ -44,19 +29,19 @@
         const UNIT_FAMILIES = {
           "กรัม": [{ name: "กรัม", mult: 1 }, { name: "กิโลกรัม", mult: 1000 }],
           "มล.": [{ name: "มล.", mult: 1 }, { name: "ลิตร", mult: 1000 }],
-          "ชิ้น": [{ name: "ชิ้น", mult: 1 }, { name: "แพ็ค (50 ชิ้น)", mult: 50 }, { name: "แพ็ค (100 ชิ้น)", mult: 100 }],
+          "ชิ้น": [{ name: "ชิ้น", mult: 1 }, { name: "แพ็ค(50)", mult: 50 }, { name: "แพ็ค(100)", mult: 100 }],
         };
 
         // ─── MOCK DATA ────────────────────────────────────────────────────────────────
         const INIT_INGREDIENTS = [
-          { id:1,  name:"ใบชาไทย",      type:"วัตถุดิบ",    unit:"กรัม",  stock:2000, costPerUnit:0.18, minStock:500  },
-          { id:2,  name:"นมข้นหวาน",    type:"วัตถุดิบ",    unit:"มล.",   stock:3500, costPerUnit:0.05, minStock:500  },
-          { id:3,  name:"นมสด",         type:"วัตถุดิบ",    unit:"มล.",   stock:8000, costPerUnit:0.04, minStock:1000 },
-          { id:8,  name:"แก้วพลาสติก",  type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:450,  costPerUnit:2.00, minStock:100  },
+          { id:1, name:"ใบชาไทย", type:"วัตถุดิบ", unit:"กรัม", stock:2000, costPerUnit:0.18, minStock:500 },
+          { id:2, name:"นมข้นหวาน", type:"วัตถุดิบ", unit:"มล.", stock:3500, costPerUnit:0.05, minStock:500 },
+          { id:3, name:"นมสด", type:"วัตถุดิบ", unit:"มล.", stock:8000, costPerUnit:0.04, minStock:1000 },
+          { id:8, name:"แก้วพลาสติก", type:"แพคเกจจิ้ง", unit:"ชิ้น", stock:450, costPerUnit:2.0, minStock:100 }
         ];
 
         const INIT_RECIPES = [
-          { id:1, name:"ชาไทยเย็น", price: 45, lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:8,qty:1}] },
+          { id:1, name:"ชาไทยเย็น", price: 45, lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:8,qty:1}] }
         ];
 
         // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -70,639 +55,245 @@
           return [msg, show];
         }
 
-        // ─── SHARED UI ───────────────────────────────────────────────────────────────
-        function Badge({ children, color="slate" }) {
-          const map = { slate:"bg-slate-700 text-slate-300", amber:"bg-amber-500/20 text-amber-400", rose:"bg-rose-500/20 text-rose-400", emerald:"bg-emerald-500/20 text-emerald-400", violet:"bg-violet-500/20 text-violet-400", sky:"bg-sky-500/20 text-sky-400" };
+        // ─── SHARED UI COMPONENTS ─────────────────────────────────────────────────────
+        const Badge = ({ children, color="slate" }) => {
+          const map = { slate:"bg-slate-700 text-slate-300", amber:"bg-amber-500/20 text-amber-400", rose:"bg-rose-500/20 text-rose-400", emerald:"bg-emerald-500/20 text-emerald-400", violet:"bg-violet-500/20 text-violet-400" };
           return <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${map[color]}`}>{children}</span>;
-        }
+        };
 
         const Card = ({ title, action, children, className="" }) => (
           <div className={`bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden ${className}`}>
             {(title||action) && (
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 gap-2 font-bold text-white">
-                {title && <p>{title}</p>}
-                {action}
+                {title && <p>{title}</p>} {action}
               </div>
             )}
             <div className="p-4">{children}</div>
           </div>
         );
 
-        function Btn({ children, onClick, variant="primary", size="md", className="", disabled=false }) {
-          const base = "inline-flex items-center gap-2 font-semibold rounded-xl touch-manipulation transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none justify-center";
-          const sz = { sm:"px-3 py-1.5 text-xs min-h-[32px]", md:"px-4 py-2.5 text-sm min-h-[42px]", lg:"px-5 py-3 text-sm min-h-[52px]" };
+        const Btn = ({ children, onClick, variant="primary", className="", disabled=false }) => {
           const va = { primary:"bg-amber-500 hover:bg-amber-400 text-slate-950", danger:"bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30", ghost:"bg-slate-800 hover:bg-slate-700 text-slate-300", emerald:"bg-emerald-500 hover:bg-emerald-400 text-slate-950" };
-          return <button disabled={disabled} onClick={onClick} className={`${base} ${sz[size]} ${va[variant]} ${className}`}>{children}</button>;
-        }
+          return <button disabled={disabled} onClick={onClick} className={`inline-flex items-center justify-center gap-2 font-semibold rounded-xl px-4 py-2.5 text-sm touch-manipulation transition-all disabled:opacity-40 ${va[variant]} ${className}`}>{children}</button>;
+        };
 
-        function Field({ label, required, children }) {
-          return (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-slate-400 text-xs font-semibold">{label}{required && <span className="text-rose-400 ml-0.5">*</span>}</label>
-              {children}
-            </div>
-          );
-        }
+        const Field = ({ label, children }) => (
+          <div className="flex flex-col gap-1.5"><label className="text-slate-400 text-xs font-semibold">{label}</label>{children}</div>
+        );
 
-        const inp = "bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 w-full placeholder-slate-500";
+        const inp = "bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 w-full";
         const sel = `${inp} appearance-none`;
 
-        function Modal({ open, onClose, title, children }) {
+        const Modal = ({ open, onClose, title, children }) => {
           if (!open) return null;
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
               <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]" onClick={e=>e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-                  <p className="text-white font-bold text-base">{title}</p>
-                  <button onClick={onClose} className="text-slate-400 hover:text-white p-1">{Icon.x}</button>
-                </div>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800"><p className="text-white font-bold text-base">{title}</p><button onClick={onClose} className="text-slate-400 hover:text-white">{Icon.x}</button></div>
                 <div className="overflow-y-auto p-5">{children}</div>
               </div>
             </div>
           );
-        }
+        };
 
         const Toast = ({ msg }) => msg ? (
-          <div className="fixed top-6 right-6 z-[100] bg-emerald-500 text-slate-950 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 font-bold animate-bounce">
-            {Icon.check} {msg}
-          </div>
+          <div className="fixed top-6 right-6 z-[100] bg-emerald-500 text-slate-950 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 font-bold animate-bounce">{Icon.check} {msg}</div>
         ) : null;
 
-        // ─── SPRINT 3: DASHBOARD PAGE (UPGRADED WITH P&L) ────────────────────────────
+        // ─── DASHBOARD PAGE ────────────────────────────────────────────────────────
         function Dashboard({ orders }) {
-          // 1. คำนวณยอดขายรับสุทธิ
           const totalNet = orders.reduce((sum, o) => sum + o.net, 0);
-          
-          // 2. คำนวณต้นทุนวัตถุดิบ (COGS) ที่ขายออกไปแล้ว
           const totalCogs = orders.reduce((sum, o) => sum + (o.cogs || 0), 0);
-          
-          // 3. กำไรสุทธิ
           const netProfit = totalNet - totalCogs;
-          const profitMargin = totalNet > 0 ? (netProfit / totalNet) * 100 : 0;
           const isProfit = netProfit >= 0;
 
           return (
             <div className="flex flex-col gap-4">
-              {/* P&L Summary Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 !p-0">
-                  <div className="p-4">
-                    <p className="text-slate-400 text-xs">ยอดขายรับสุทธิ (Net Rev.)</p>
-                    <p className="text-2xl text-white font-black mt-1">{fmtDisplay(totalNet)}</p>
-                    <p className="text-xs text-slate-500 mt-1">หลังหัก GP/Ads แล้ว</p>
-                  </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-rose-900/40 to-slate-900 border-rose-900/50 !p-0">
-                  <div className="p-4">
-                    <p className="text-rose-400 text-xs">ต้นทุนวัตถุดิบ (COGS)</p>
-                    <p className="text-2xl text-rose-400 font-black mt-1">-{fmtDisplay(totalCogs)}</p>
-                    <p className="text-xs text-rose-500/70 mt-1">Cost of Goods Sold</p>
-                  </div>
-                </Card>
-                <Card className={`bg-gradient-to-br border !p-0 lg:col-span-2 ${isProfit ? 'from-emerald-900/80 to-teal-900/40 border-emerald-500/50' : 'from-rose-900/80 to-red-900/40 border-rose-500/50'}`}>
+                <Card className="bg-slate-800 border-slate-700 !p-0"><div className="p-4"><p className="text-slate-400 text-xs">ยอดขายรับสุทธิ (Net)</p><p className="text-2xl text-white font-black mt-1">{fmtDisplay(totalNet)}</p></div></Card>
+                <Card className="bg-rose-900/20 border-rose-900/50 !p-0"><div className="p-4"><p className="text-rose-400 text-xs">ต้นทุนรวม (COGS)</p><p className="text-2xl text-rose-400 font-black mt-1">-{fmtDisplay(totalCogs)}</p></div></Card>
+                <Card className={`!p-0 lg:col-span-2 border ${isProfit ? 'bg-emerald-900/20 border-emerald-500/50' : 'bg-rose-900/20 border-rose-500/50'}`}>
                   <div className="p-4 flex justify-between items-end">
-                    <div>
-                      <p className={`text-xs font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>กำไรสุทธิ (Net Profit)</p>
-                      <p className={`text-3xl lg:text-4xl font-black mt-1 flex items-center gap-2 ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isProfit ? Icon.trendUp : Icon.trendDown}
-                        {fmtDisplay(netProfit)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-xs ${isProfit ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>Margin (อัตรากำไร)</p>
-                      <p className={`text-xl font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>{profitMargin.toFixed(1)}%</p>
-                    </div>
+                    <div><p className={`text-xs font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>กำไรสุทธิ (Net Profit)</p><p className={`text-3xl font-black mt-1 ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>{isProfit ? Icon.trendUp : Icon.trendDown} {fmtDisplay(netProfit)}</p></div>
+                    <div className="text-right"><p className="text-xs text-slate-400">Margin (%)</p><p className={`text-xl font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>{totalNet > 0 ? (netProfit / totalNet * 100).toFixed(1) : 0}%</p></div>
                   </div>
                 </Card>
               </div>
-
               <Card title={`ประวัติการขายวันนี้ (${orders.length} บิล)`} className="!p-0">
-                {orders.length === 0 ? <p className="text-slate-500 text-center py-8">ยังไม่มีออเดอร์</p> : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap min-w-[700px]">
-                      <thead><tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50"><th className="p-3">เวลา</th><th className="p-3">โหมด</th><th className="p-3">รายการ</th><th className="p-3 text-right">ยอดรับ (Net)</th><th className="p-3 text-right text-rose-400">ต้นทุน (COGS)</th><th className="p-3 text-right text-emerald-400">กำไร</th></tr></thead>
-                      <tbody>
-                        {orders.map((o,i) => {
-                          const orderProfit = o.net - o.cogs;
-                          return (
-                            <tr key={i} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                              <td className="p-3 text-slate-400">{o.time}</td>
-                              <td className="p-3"><Badge color={o.type==='storefront'?'amber':'rose'}>{o.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่'}</Badge></td>
-                              <td className="p-3 text-white break-words whitespace-normal max-w-[200px]">{o.items}</td>
-                              <td className="p-3 text-right text-white font-bold">{fmtDisplay(o.net)}</td>
-                              <td className="p-3 text-right text-rose-400">-{fmtDisplay(o.cogs)}</td>
-                              <td className={`p-3 text-right font-bold ${orderProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmtDisplay(orderProfit)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <div className="overflow-x-auto"><table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
+                  <thead><tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50"><th className="p-3">เวลา</th><th className="p-3">รายการ</th><th className="p-3 text-right">ยอดรับ(Net)</th><th className="p-3 text-right text-rose-400">ต้นทุน</th><th className="p-3 text-right text-emerald-400">กำไร</th></tr></thead>
+                  <tbody>{orders.map((o,i) => (
+                    <tr key={i} className="border-b border-slate-800/50 hover:bg-slate-800/30"><td className="p-3 text-slate-400">{o.time}</td><td className="p-3 text-white max-w-[200px] truncate">{o.items}</td><td className="p-3 text-right font-bold">{fmtDisplay(o.net)}</td><td className="p-3 text-right text-rose-400">-{fmtDisplay(o.cogs)}</td><td className={`p-3 text-right font-bold ${o.net-o.cogs >= 0 ? 'text-emerald-400':'text-rose-400'}`}>{fmtDisplay(o.net-o.cogs)}</td></tr>
+                  ))}</tbody>
+                </table></div>
               </Card>
             </div>
           );
         }
 
-        // ─── SPRINT 3: POS PAGE (UPGRADED WITH COGS SNAPSHOT) ────────────────────────
+        // ─── POS PAGE ──────────────────────────────────────────────────────────────
         function POSPage({ recipes, ingredients, setIngredients, onOrderComplete }) {
-          const [orderType, setOrderType] = useState('storefront');
+          const [type, setType] = useState('storefront');
           const [cart, setCart] = useState([]);
-          const [gpPercent, setGpPercent] = useState(30);
-          const [adsDiscount, setAdsDiscount] = useState(0);
+          const [gp, setGp] = useState(30);
+          const [ads, setAds] = useState(0);
 
-          const grossTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-          const gpDeduction = orderType === 'delivery' ? grossTotal * (gpPercent / 100) : 0;
-          const netRevenue = orderType === 'delivery' ? grossTotal - gpDeduction - adsDiscount : grossTotal;
+          const gross = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+          const gpDed = type === 'delivery' ? gross * (gp / 100) : 0;
+          const net = type === 'delivery' ? gross - gpDed - ads : gross;
 
-          const addToCart = (recipe) => {
-            setCart(prev => {
-              const ex = prev.find(i => i.id === recipe.id);
-              if (ex) return prev.map(i => i.id === recipe.id ? { ...i, qty: i.qty + 1 } : i);
-              return [...prev, { ...recipe, qty: 1 }];
-            });
-          };
-
-          const updateQty = (id, delta) => {
-            setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(0, i.qty + delta) } : i).filter(i => i.qty > 0));
-          };
+          const add = (r) => setCart(p => p.find(i=>i.id===r.id) ? p.map(i=>i.id===r.id?{...i,qty:i.qty+1}:i) : [...p,{...r,qty:1}]);
+          const upQty = (id, d) => setCart(p => p.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0));
 
           const checkout = () => {
-            if (cart.length === 0) return;
-            
-            let stockDeductions = {};
-            let orderTotalCogs = 0; // ตัวแปรเก็บต้นทุนรวมของบิลนี้
-
-            cart.forEach(cartItem => {
-                const recipe = recipes.find(r => r.id === cartItem.id);
-                if(recipe) {
-                    // คำนวณต้นทุนต่อแก้ว ณ วินาทีนี้ (Snapshot)
-                    const itemCogs = calcRecipeCost(recipe.lines, ingredients);
-                    orderTotalCogs += (itemCogs * cartItem.qty);
-
-                    // เก็บยอดสำหรับตัดสต็อก
-                    recipe.lines.forEach(line => {
-                        stockDeductions[line.ingId] = (stockDeductions[line.ingId] || 0) + (line.qty * cartItem.qty);
-                    });
+            if (!cart.length) return;
+            let deds = {}, cogs = 0;
+            cart.forEach(c => {
+                const r = recipes.find(x => x.id === c.id);
+                if(r) {
+                    cogs += calcRecipeCost(r.lines, ingredients) * c.qty;
+                    r.lines.forEach(l => deds[l.ingId] = (deds[l.ingId] || 0) + (l.qty * c.qty));
                 }
             });
-
-            // ตัดสต็อก
-            setIngredients(prev => prev.map(ing => stockDeductions[ing.id] ? { ...ing, stock: Math.max(0, ing.stock - stockDeductions[ing.id]) } : ing));
-            
-            // ส่งบิลเข้าระบบ พร้อมแนบ cogs ไปด้วย
-            onOrderComplete({
-              id: `#${Math.floor(1000 + Math.random() * 9000)}`,
-              type: orderType,
-              items: cart.map(i => `${i.name} x${i.qty}`).join(', '),
-              gross: grossTotal,
-              net: netRevenue,
-              cogs: orderTotalCogs, // <--- เพิ่มต้นทุนที่คำนวณได้
-              time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-            });
-            setCart([]); setAdsDiscount(0);
+            setIngredients(p => p.map(i => deds[i.id] ? { ...i, stock: Math.max(0, i.stock - deds[i.id]) } : i));
+            onOrderComplete({ id: `#${Math.floor(1000+Math.random()*9000)}`, type, items: cart.map(i=>`${i.name} x${i.qty}`).join(', '), gross, net, cogs, time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) });
+            setCart([]); setAds(0);
           };
 
           return (
             <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-8rem)]">
               <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
-                <div className="flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800 flex-shrink-0">
-                  <button onClick={() => setOrderType('storefront')} className={`flex-1 py-3 rounded-xl font-bold transition-all ${orderType==='storefront'?'bg-amber-500 text-slate-950':'text-slate-400 hover:bg-slate-800'}`}>🏠 หน้าร้าน</button>
-                  <button onClick={() => setOrderType('delivery')} className={`flex-1 py-3 rounded-xl font-bold transition-all ${orderType==='delivery'?'bg-orange-500 text-white':'text-slate-400 hover:bg-slate-800'}`}>🛵 เดลิเวอรี่</button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {recipes.map(r => (
-                    <button key={r.id} onClick={() => addToCart(r)} className="bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-2xl p-4 text-left transition-all active:scale-95 flex flex-col items-center text-center">
-                      <div className="text-4xl mb-2">🥤</div>
-                      <p className="text-white font-bold truncate w-full">{r.name}</p>
-                      <p className="text-amber-400 text-sm mt-1">{fmtDisplay(r.price)}</p>
-                    </button>
-                  ))}
-                </div>
+                <div className="flex gap-2 bg-slate-900 p-2 rounded-2xl flex-shrink-0"><button onClick={()=>setType('storefront')} className={`flex-1 py-3 rounded-xl font-bold ${type==='storefront'?'bg-amber-500 text-slate-950':'text-slate-400'}`}>หน้าร้าน</button><button onClick={()=>setType('delivery')} className={`flex-1 py-3 rounded-xl font-bold ${type==='delivery'?'bg-orange-500 text-white':'text-slate-400'}`}>เดลิเวอรี่</button></div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{recipes.map(r => <button key={r.id} onClick={()=>add(r)} className="bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-2xl p-4 text-center active:scale-95"><div className="text-4xl mb-2">🥤</div><p className="text-white font-bold truncate">{r.name}</p><p className="text-amber-400 text-sm mt-1">{fmtDisplay(r.price)}</p></button>)}</div>
               </div>
-
-              <div className="w-full lg:w-96 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex-shrink-0 lg:h-full max-h-[60vh] lg:max-h-full">
-                <div className="p-4 border-b border-slate-800 font-bold text-white flex-shrink-0">ตะกร้าออเดอร์</div>
-                <div className="flex-1 overflow-y-auto p-2">
-                  {cart.length === 0 ? <div className="text-center text-slate-500 py-10">ยังไม่มีรายการ</div> : (
-                    <div className="flex flex-col gap-2">
-                      {cart.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-white font-bold text-sm truncate">{item.name}</p>
-                            <p className="text-slate-400 text-xs">{fmtDisplay(item.price)}</p>
-                          </div>
-                          <div className="flex items-center gap-3 bg-slate-900 rounded-lg p-1">
-                            <button onClick={() => updateQty(item.id, -1)} className="p-1 text-slate-400 hover:text-rose-400">{item.qty===1 ? Icon.trash : Icon.minus}</button>
-                            <span className="text-white font-bold w-4 text-center">{item.qty}</span>
-                            <button onClick={() => updateQty(item.id, 1)} className="p-1 text-slate-400 hover:text-emerald-400">{Icon.plus}</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="w-full lg:w-96 flex flex-col bg-slate-900 rounded-2xl flex-shrink-0 lg:h-full max-h-[60vh]">
+                <div className="p-4 border-b border-slate-800 font-bold text-white flex-shrink-0">ตะกร้า</div>
+                <div className="flex-1 overflow-y-auto p-2">{cart.map(i => <div key={i.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl mb-2 border border-slate-800"><div className="min-w-0"><p className="text-white font-bold truncate">{i.name}</p><p className="text-slate-400 text-xs">{fmtDisplay(i.price)}</p></div><div className="flex items-center gap-3 bg-slate-900 rounded-lg p-1"><button onClick={()=>upQty(i.id,-1)} className="p-2">{Icon.minus}</button><span className="text-white font-bold w-4 text-center">{i.qty}</span><button onClick={()=>upQty(i.id,1)} className="p-2">{Icon.plus}</button></div></div>)}</div>
                 <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col gap-3 flex-shrink-0">
-                  <div className="flex justify-between text-slate-400 text-sm"><span>ยอดรวมปกติ</span><span className="text-white">{fmtDisplay(grossTotal)}</span></div>
-                  {orderType === 'delivery' && (
-                    <div className="flex flex-col gap-2 bg-orange-500/10 border border-orange-500/30 p-3 rounded-xl">
-                      <div className="flex items-center justify-between text-sm"><span className="text-orange-400">หัก GP Platform (%)</span><input type="number" value={gpPercent} onChange={(e)=>setGpPercent(Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded text-right px-1 text-white" /></div>
-                      <div className="flex justify-between text-rose-400 text-xs"><span>มูลค่าที่โดนหัก</span><span>-{fmtDisplay(gpDeduction)}</span></div>
-                      <div className="flex items-center justify-between text-sm mt-1"><span className="text-orange-400">หักส่วนลด/Ads (฿)</span><input type="number" value={adsDiscount} onChange={(e)=>setAdsDiscount(Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded text-right px-1 text-white" /></div>
+                  <div className="flex justify-between text-slate-400 text-sm"><span>ยอดรวม</span><span className="text-white">{fmtDisplay(gross)}</span></div>
+                  {type === 'delivery' && (
+                    <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/30 text-sm flex flex-col gap-2">
+                      <div className="flex justify-between items-center"><span className="text-orange-400">หัก GP (%)</span><input type="number" value={gp} onChange={e=>setGp(Number(e.target.value))} className="w-16 bg-slate-900 text-white px-1 text-right rounded"/></div>
+                      <div className="flex justify-between items-center"><span className="text-orange-400">ส่วนลด Ads (฿)</span><input type="number" value={ads} onChange={e=>setAds(Number(e.target.value))} className="w-16 bg-slate-900 text-white px-1 text-right rounded"/></div>
                     </div>
                   )}
-                  <div className="flex justify-between items-center mt-2"><span className="text-lg text-emerald-400 font-bold">ยอดรับสุทธิ</span><span className="text-3xl text-emerald-400 font-black">{fmtDisplay(netRevenue)}</span></div>
-                  <button onClick={checkout} disabled={cart.length === 0} className="w-full py-4 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:bg-slate-800 text-slate-950 font-black text-lg rounded-xl transition-all shadow-lg active:scale-95">ยืนยัน & ตัดสต็อก</button>
+                  <div className="flex justify-between items-center mt-2"><span className="text-lg text-emerald-400 font-bold">ยอดรับสุทธิ</span><span className="text-3xl text-emerald-400 font-black">{fmtDisplay(net)}</span></div>
+                  <Btn onClick={checkout} variant="emerald" disabled={cart.length===0} className="w-full py-4 text-lg mt-2">ยืนยัน & ตัดสต็อก</Btn>
                 </div>
               </div>
             </div>
           );
         }
 
-        // ─── SPRINT 2: INVENTORY PAGE (WITH INITIAL COST CLARITY) ───────────────────
-        const EMPTY_ING = { name:"", type:"วัตถุดิบ", unit:"กรัม", stock:"", costPerUnit:"", minStock:"" };
-        const EMPTY_RECV = { ingId:"", qty:"", mult: 1, displayUnit: "", totalPrice:"" };
-
-        function InventoryPage({ ingredients, setIngredients, adjustments, setAdjustments, onNavAdj }) {
-          const [modalAdd, setModalAdd] = useState(false);
-          const [modalReceive, setModalReceive] = useState(false);
-          const [formAdd, setFormAdd] = useState(EMPTY_ING);
-          const [formRecv, setFormRecv] = useState(EMPTY_RECV);
+        // ─── INVENTORY PAGE ────────────────────────────────────────────────────────
+        function InventoryPage({ ings, setIngs, adjs, setAdjs, onNavAdj }) {
+          const [mAdd, setMAdd] = useState(false); const [mRecv, setMRecv] = useState(false);
+          const [fAdd, setFAdd] = useState({name:"",type:"วัตถุดิบ",unit:"กรัม",stock:"",costPerUnit:"",minStock:""});
+          const [fRecv, setFRecv] = useState({ingId:"",qty:"",mult:1,totalPrice:""});
           const [toast, showToast] = useToast();
 
-          const selRecvIng = ingredients.find(i=>i.id===Number(formRecv.ingId));
-          const unitOptions = selRecvIng ? (UNIT_FAMILIES[selRecvIng.unit] || [{name: selRecvIng.unit, mult: 1}]) : [];
+          const selIng = ings.find(i=>i.id===Number(fRecv.ingId));
+          const opts = selIng ? (UNIT_FAMILIES[selIng.unit]||[{name:selIng.unit,mult:1}]) : [];
+          useEffect(()=>{ if(selIng&&opts.length>0) setFRecv(f=>({...f,mult:opts[0].mult})); }, [fRecv.ingId]);
 
-          useEffect(() => {
-              if (selRecvIng && unitOptions.length > 0) {
-                  setFormRecv(f => ({...f, mult: unitOptions[0].mult, displayUnit: unitOptions[0].name}));
-              }
-          }, [formRecv.ingId]);
+          const qtyAdd = Number(fRecv.qty||0)*Number(fRecv.mult||1);
+          const oldVal = selIng ? selIng.stock*selIng.costPerUnit : 0;
+          const avgCost = selIng && (selIng.stock+qtyAdd)>0 ? (oldVal+Number(fRecv.totalPrice||0))/(selIng.stock+qtyAdd) : 0;
 
-          const baseQtyToAdd = Number(formRecv.qty || 0) * Number(formRecv.mult || 1);
-          const currentTotalVal = selRecvIng ? selRecvIng.stock * selRecvIng.costPerUnit : 0;
-          const newTotalVal = currentTotalVal + Number(formRecv.totalPrice || 0);
-          const newStockQty = selRecvIng ? selRecvIng.stock + baseQtyToAdd : 0;
-          const previewAvgCost = newStockQty > 0 ? newTotalVal / newStockQty : 0;
-
-          const saveNewIng = () => {
-            if (!formAdd.name||!formAdd.stock||!formAdd.costPerUnit) return;
-            const id = Math.max(0,...ingredients.map(i=>i.id))+1;
-            setIngredients(p=>[...p,{...formAdd, id, stock:Number(formAdd.stock), costPerUnit:Number(formAdd.costPerUnit), minStock:Number(formAdd.minStock||0)}]);
-            setModalAdd(false); showToast("สร้างรายการวัตถุดิบใหม่แล้ว");
-            setFormAdd(EMPTY_ING);
-          };
-
-          const saveReceiveStock = () => {
-            if (!formRecv.ingId || !formRecv.qty || !formRecv.totalPrice) return;
-            const ingId = Number(formRecv.ingId);
-            const rPrice = Number(formRecv.totalPrice);
-            const ing = ingredients.find(i => i.id === ingId);
-            if(!ing) return;
-
-            setIngredients(prev => prev.map(i => {
-                if(i.id === ingId) {
-                    const totalVal = (i.stock * i.costPerUnit) + rPrice;
-                    const newQty = i.stock + baseQtyToAdd;
-                    const avgCost = newQty > 0 ? totalVal / newQty : 0;
-                    return { ...i, stock: newQty, costPerUnit: avgCost };
-                }
-                return i;
-            }));
-
-            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:"Receive (รับเข้า)",qty:baseQtyToAdd,unit:ing.unit,reason:`ซื้อมา ${formRecv.qty} ${formRecv.displayUnit} ในราคา ${rPrice}บ.`,date:new Date().toLocaleDateString('th-TH')},...p]);
-            setModalReceive(false); showToast(`รับเข้า ${ing.name} เรียบร้อย (แปลงเป็น ${baseQtyToAdd} ${ing.unit})`);
-            setFormRecv(EMPTY_RECV);
+          const saveAdd = () => { setIngs(p=>[...p,{...fAdd,id:Date.now(),stock:Number(fAdd.stock),costPerUnit:Number(fAdd.costPerUnit),minStock:Number(fAdd.minStock||0)}]); setMAdd(false); setFAdd({...fAdd,name:""}); showToast("บันทึกแล้ว"); };
+          const saveRecv = () => {
+            setIngs(p=>p.map(i=>i.id===Number(fRecv.ingId)?{...i,stock:i.stock+qtyAdd,costPerUnit:avgCost}:i));
+            setAdjs(p=>[{id:Date.now(),ingName:selIng.name,type:"รับเข้า",qty:qtyAdd,unit:selIng.unit,date:new Date().toLocaleDateString('th-TH')},...p]);
+            setMRecv(false); setFRecv({...fRecv,ingId:"",qty:"",totalPrice:""}); showToast("คำนวณคอสใหม่แล้ว");
           };
 
           return (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2 justify-between items-center">
-                <div className="flex gap-2">
-                    <Btn onClick={()=>setModalAdd(true)} variant="ghost">{Icon.plus} เพิ่มรายการใหม่</Btn>
-                    <Btn onClick={()=>setModalReceive(true)} variant="emerald">{Icon.inbox} รับของเข้าสต็อก (Purchasing)</Btn>
-                </div>
-                <Btn variant="ghost" onClick={onNavAdj}>⚖️ ตัดสต็อกทิ้ง/R&D</Btn>
-              </div>
-              
-              <Card className="!p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
-                    <thead><tr className="border-b border-slate-800 bg-slate-900/50"><th className="p-3">ชื่อรายการ</th><th className="p-3">ประเภท</th><th className="p-3">สต็อกคงเหลือ (หน่วยฐาน)</th><th className="p-3">ต้นทุนเฉลี่ย/หน่วย</th><th className="p-3 text-center">จัดการ</th></tr></thead>
-                    <tbody>
-                      {ingredients.map(ing=>{
-                        const low = ing.stock <= ing.minStock;
-                        return (
-                          <tr key={ing.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                            <td className="p-3 text-white font-semibold break-words whitespace-normal max-w-[150px]">{ing.name}</td>
-                            <td className="p-3"><Badge color={ing.type==="วัตถุดิบ"?"amber":"violet"}>{ing.type}</Badge></td>
-                            <td className="p-3"><span className={`font-bold ${low?'text-rose-400':'text-emerald-400'}`}>{ing.stock} {ing.unit}</span> {low && <span className="text-xs text-rose-500 ml-1">(ใกล้หมด)</span>}</td>
-                            <td className="p-3 text-amber-400 font-bold">{fmtCost(ing.costPerUnit)}</td>
-                            <td className="p-3 text-center"><button onClick={()=>setIngredients(p=>p.filter(i=>i.id!==ing.id))} className="text-slate-500 hover:text-rose-400 p-2">{Icon.trash}</button></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              {/* Modal สร้างไอเทมใหม่ - ปรับคำอธิบายให้ชัดเจน */}
-              <Modal open={modalAdd} onClose={()=>setModalAdd(false)} title="เพิ่มวัตถุดิบ / แพคเกจจิ้งใหม่">
-                <div className="flex flex-col gap-4">
-                  <Field label="ชื่อรายการ"><input className={inp} value={formAdd.name} onChange={e=>setFormAdd(f=>({...f,name:e.target.value}))}/></Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="ประเภท"><select className={sel} value={formAdd.type} onChange={e=>setFormAdd(f=>({...f,type:e.target.value}))}><option>วัตถุดิบ</option><option>แพคเกจจิ้ง</option></select></Field>
-                    <Field label="หน่วยฐาน (Base Unit)"><select className={sel} value={formAdd.unit} onChange={e=>setFormAdd(f=>({...f,unit:e.target.value}))}><option>กรัม</option><option>มล.</option><option>ชิ้น</option></select></Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="ยอดยกมาเริ่มต้น"><input type="number" className={inp} value={formAdd.stock} onChange={e=>setFormAdd(f=>({...f,stock:e.target.value}))}/></Field>
-                    <Field label="แจ้งเตือนเมื่อต่ำกว่า"><input type="number" className={inp} value={formAdd.minStock} onChange={e=>setFormAdd(f=>({...f,minStock:e.target.value}))}/></Field>
-                  </div>
-                  <Field label="ต้นทุนเบื้องต้นต่อหน่วย (฿) *เพื่อเริ่มหาค่าเฉลี่ย"><input type="number" className={inp} value={formAdd.costPerUnit} onChange={e=>setFormAdd(f=>({...f,costPerUnit:e.target.value}))}/></Field>
-                  <Btn onClick={saveNewIng} disabled={!formAdd.name}>บันทึกรายการ</Btn>
-                </div>
-              </Modal>
-
-              <Modal open={modalReceive} onClose={()=>setModalReceive(false)} title="📥 รับของเข้าสต็อก (แปลงหน่วยอัตโนมัติ)">
-                <div className="flex flex-col gap-4">
-                  <Field label="เลือกวัตถุดิบที่ซื้อเข้ามา" required>
-                    <select className={sel} value={formRecv.ingId} onChange={e=>setFormRecv(f=>({...f,ingId:e.target.value}))}>
-                      <option value="">-- เลือกวัตถุดิบ --</option>
-                      {ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name} (คลังมี: {i.stock} {i.unit})</option>))}
-                    </select>
-                  </Field>
-
-                  {selRecvIng && (
-                  <>
-                    <div className="grid grid-cols-2 gap-3 bg-slate-800/30 p-3 rounded-xl border border-slate-700/50">
-                        <Field label="จำนวนที่ซื้อ" required>
-                            <input type="number" className={inp} placeholder="เช่น 1, 5" value={formRecv.qty} onChange={e=>setFormRecv(f=>({...f,qty:e.target.value}))}/>
-                        </Field>
-                        <Field label="เลือกหน่วยตอนซื้อ" required>
-                            <select className={sel} value={formRecv.mult} onChange={e=>{
-                                const selectedOption = unitOptions.find(u => u.mult === Number(e.target.value));
-                                setFormRecv(f=>({...f, mult: Number(e.target.value), displayUnit: selectedOption?.name || ''}))
-                            }}>
-                                {unitOptions.map(u => <option key={u.name} value={u.mult}>{u.name} (={u.mult} {selRecvIng.unit})</option>)}
-                            </select>
-                        </Field>
-                    </div>
-
-                    <Field label="ราคารวมที่จ่ายใบเสร็จนี้ (฿)" required>
-                        <input type="number" className={inp} placeholder="0.00" value={formRecv.totalPrice} onChange={e=>setFormRecv(f=>({...f,totalPrice:e.target.value}))}/>
-                    </Field>
-
-                    {formRecv.qty && formRecv.totalPrice && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex flex-col gap-2 mt-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-400">ระบบจะแปลงเข้าสต็อก:</span>
-                                <span className="text-emerald-400 font-bold">+{baseQtyToAdd} {selRecvIng.unit}</span>
-                            </div>
-                            <div className="flex justify-between items-end border-t border-emerald-500/20 pt-2">
-                                <span className="text-emerald-500 text-xs font-bold">พรีวิวต้นทุนเฉลี่ยใหม่:</span>
-                                <span className="text-2xl text-emerald-400 font-black">{fmtCost(previewAvgCost)} <span className="text-sm font-normal text-slate-400">/ {selRecvIng.unit}</span></span>
-                            </div>
-                        </div>
-                    )}
-                  </>
-                  )}
-
-                  <Btn onClick={saveReceiveStock} variant="emerald" disabled={!formRecv.ingId || !formRecv.qty || !formRecv.totalPrice}>บันทึกรับเข้า & คำนวณคอส</Btn>
-                </div>
-              </Modal>
+              <div className="flex justify-between items-center"><div className="flex gap-2"><Btn onClick={()=>setMAdd(true)} variant="ghost">{Icon.plus} รายการใหม่</Btn><Btn onClick={()=>setMRecv(true)} variant="emerald">{Icon.inbox} ซื้อของเข้า</Btn></div><Btn variant="ghost" onClick={onNavAdj}>ตัดของทิ้ง</Btn></div>
+              <Card className="!p-0"><div className="overflow-x-auto"><table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-slate-900/50 border-b border-slate-800"><tr><th className="p-3">ชื่อ</th><th className="p-3">สต็อก(ฐาน)</th><th className="p-3">ต้นทุน/หน่วย</th><th className="p-3"></th></tr></thead><tbody>{ings.map(i=><tr key={i.id} className="border-b border-slate-800/50"><td className="p-3 font-semibold text-white">{i.name}</td><td className={`p-3 font-bold ${i.stock<=i.minStock?'text-rose-400':'text-emerald-400'}`}>{i.stock} {i.unit}</td><td className="p-3 text-amber-400 font-bold">{fmtCost(i.costPerUnit)}</td><td className="p-3 text-center"><button onClick={()=>setIngs(p=>p.filter(x=>x.id!==i.id))} className="text-slate-500 hover:text-rose-400">{Icon.trash}</button></td></tr>)}</tbody></table></div></Card>
+              <Modal open={mAdd} onClose={()=>setMAdd(false)} title="เพิ่มวัตถุดิบใหม่"><div className="flex flex-col gap-3"><Field label="ชื่อ"><input className={inp} value={fAdd.name} onChange={e=>setFAdd(f=>({...f,name:e.target.value}))}/></Field><div className="flex gap-3"><Field label="หน่วยฐาน"><select className={sel} value={fAdd.unit} onChange={e=>setFAdd(f=>({...f,unit:e.target.value}))}><option>กรัม</option><option>มล.</option><option>ชิ้น</option></select></Field><Field label="สต็อก"><input type="number" className={inp} value={fAdd.stock} onChange={e=>setFAdd(f=>({...f,stock:e.target.value}))}/></Field></div><Field label="ต้นทุนเบื้องต้น (฿)"><input type="number" className={inp} value={fAdd.costPerUnit} onChange={e=>setFAdd(f=>({...f,costPerUnit:e.target.value}))}/></Field><Btn onClick={saveAdd} disabled={!fAdd.name}>บันทึก</Btn></div></Modal>
+              <Modal open={mRecv} onClose={()=>setMRecv(false)} title="ซื้อของเข้า (Moving Avg)"><div className="flex flex-col gap-3"><Field label="วัตถุดิบ"><select className={sel} value={fRecv.ingId} onChange={e=>setFRecv(f=>({...f,ingId:e.target.value}))}><option value="">--เลือก--</option>{ings.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></Field>{selIng&&<div className="flex gap-3"><Field label="จำนวน"><input type="number" className={inp} value={fRecv.qty} onChange={e=>setFRecv(f=>({...f,qty:e.target.value}))}/></Field><Field label="หน่วย"><select className={sel} value={fRecv.mult} onChange={e=>setFRecv(f=>({...f,mult:Number(e.target.value)}))}>{opts.map(u=><option key={u.name} value={u.mult}>{u.name}</option>)}</select></Field></div>}<Field label="ราคารวมที่จ่าย (฿)"><input type="number" className={inp} value={fRecv.totalPrice} onChange={e=>setFRecv(f=>({...f,totalPrice:e.target.value}))}/></Field>{fRecv.qty&&fRecv.totalPrice&&<div className="p-3 bg-emerald-500/10 rounded-xl text-center"><p className="text-emerald-500 text-xs">คอสเฉลี่ยใหม่</p><p className="text-emerald-400 text-xl font-bold">{fmtCost(avgCost)} / {selIng.unit}</p></div>}<Btn onClick={saveRecv} variant="emerald" disabled={!fRecv.ingId||!fRecv.totalPrice}>บันทึกรับเข้า</Btn></div></Modal>
             </div>
           );
         }
 
-        // ─── STOCK ADJUSTMENT PAGE ──────────────────────────────────────────────────
-        function StockAdjPage({ ingredients, setIngredients, adjustments, setAdjustments, onBack }) {
-          const [form, setForm] = useState({ ingId:"", type:"Damage/Waste", qty:"", mult: 1, displayUnit: "", reason:"" });
-          const [toast, showToast] = useToast();
-
-          const selAdjIng = ingredients.find(i=>i.id===Number(form.ingId));
-          const unitOptions = selAdjIng ? (UNIT_FAMILIES[selAdjIng.unit] || [{name: selAdjIng.unit, mult: 1}]) : [];
-
-          useEffect(() => {
-              if (selAdjIng && unitOptions.length > 0) {
-                  setForm(f => ({...f, mult: unitOptions[0].mult, displayUnit: unitOptions[0].name}));
-              }
-          }, [form.ingId]);
-
-          const baseQtyToDeduct = Number(form.qty || 0) * Number(form.mult || 1);
+        // ─── STOCK ADJUST PAGE ─────────────────────────────────────────────────────
+        function StockAdjPage({ ings, setIngs, adjs, setAdjs, onBack }) {
+          const [f, setF] = useState({ingId:"",qty:"",mult:1});
+          const selIng = ings.find(i=>i.id===Number(f.ingId));
+          const opts = selIng ? (UNIT_FAMILIES[selIng.unit]||[{name:selIng.unit,mult:1}]) : [];
+          useEffect(()=>{ if(selIng&&opts.length>0) setF(x=>({...x,mult:opts[0].mult})); }, [f.ingId]);
+          const deduct = Number(f.qty||0)*Number(f.mult||1);
 
           const submit = () => {
-            if (!form.ingId||!form.qty) return;
-            const ing = ingredients.find(i=>i.id===Number(form.ingId));
-            setIngredients(p=>p.map(i=>i.id===ing.id?{...i,stock:Math.max(0,i.stock-baseQtyToDeduct)}:i));
-            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:form.type,qty:baseQtyToDeduct,unit:ing.unit,reason:form.reason || `ตัดทิ้ง ${form.qty} ${form.displayUnit}`,date:new Date().toLocaleDateString('th-TH')},...p]);
-            showToast(`ตัดสต็อก ${ing.name} ทิ้งแล้ว ✓`);
-            setForm({ ingId:"", type:"Damage/Waste", qty:"", mult: 1, displayUnit: "", reason:"" });
+            setIngs(p=>p.map(i=>i.id===selIng.id?{...i,stock:Math.max(0,i.stock-deduct)}:i));
+            setAdjs(p=>[{id:Date.now(),ingName:selIng.name,type:"ปรับลด",qty:deduct,unit:selIng.unit,date:new Date().toLocaleDateString('th-TH')},...p]);
+            setF({ingId:"",qty:"",mult:1});
           };
 
           return (
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-2 mb-2">
-                <button onClick={onBack} className="p-2 bg-slate-800 rounded-lg hover:text-white">{Icon.back}</button>
-                <h2 className="text-white font-bold text-lg">ประวัติสต็อก & ฟอร์มตัดของทิ้ง</h2>
-              </div>
+              <button onClick={onBack} className="self-start text-slate-400 hover:text-white font-bold">{Icon.back} กลับไปหน้าสต็อก</button>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card title="ฟอร์มตัดสต็อกทิ้ง (Manual)">
-                  <div className="flex flex-col gap-4">
-                    <Field label="ประเภท"><select className={sel} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}><option>Damage/Waste (ของเสีย)</option><option>WIP / R&D (ทดลองสูตร)</option></select></Field>
-                    <Field label="เลือกวัตถุดิบ"><select className={sel} value={form.ingId} onChange={e=>setForm(f=>({...f,ingId:e.target.value}))}><option value="">-- เลือกวัตถุดิบ --</option>{ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name} ({i.stock} {i.unit})</option>))}</select></Field>
-                    {selAdjIng && (
-                        <div className="grid grid-cols-2 gap-3">
-                            <Field label="จำนวน"><input type="number" className={inp} value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></Field>
-                            <Field label="หน่วย">
-                                <select className={sel} value={form.mult} onChange={e=>{
-                                    const selectedOption = unitOptions.find(u => u.mult === Number(e.target.value));
-                                    setForm(f=>({...f, mult: Number(e.target.value), displayUnit: selectedOption?.name || ''}))
-                                }}>
-                                    {unitOptions.map(u => <option key={u.name} value={u.mult}>{u.name}</option>)}
-                                </select>
-                            </Field>
-                        </div>
-                    )}
-                    {form.qty && selAdjIng && (<p className="text-xs text-rose-400">ระบบจะหักลบจริง: {baseQtyToDeduct} {selAdjIng.unit}</p>)}
-                    <Field label="หมายเหตุ (ถ้ามี)"><input className={inp} value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))}/></Field>
-                    <Btn onClick={submit} variant="danger" disabled={!form.ingId || !form.qty}>ยืนยันการตัดสต็อก</Btn>
-                  </div>
+                <Card title="แบบฟอร์มตัดสต็อกทิ้ง (Manual)">
+                  <div className="flex flex-col gap-3"><Field label="วัตถุดิบ"><select className={sel} value={f.ingId} onChange={e=>setF(x=>({...x,ingId:e.target.value}))}><option value="">--เลือก--</option>{ings.map(i=><option key={i.id} value={i.id}>{i.name} ({i.stock}{i.unit})</option>)}</select></Field>{selIng&&<div className="flex gap-3"><Field label="จำนวน"><input type="number" className={inp} value={f.qty} onChange={e=>setF(x=>({...x,qty:e.target.value}))}/></Field><Field label="หน่วย"><select className={sel} value={f.mult} onChange={e=>setF(x=>({...x,mult:Number(e.target.value)}))}>{opts.map(u=><option key={u.name} value={u.mult}>{u.name}</option>)}</select></Field></div>}<Btn onClick={submit} variant="danger" disabled={!f.ingId||!f.qty}>ยืนยันตัดสต็อกทิ้ง</Btn></div>
                 </Card>
-                <Card title="Log การปรับ/รับเข้า" className="!p-0">
-                  <div className="overflow-x-auto p-4">
-                    {adjustments.length===0 ? <p className="text-slate-500 text-center">ไม่มีประวัติ</p> : (
-                      <table className="w-full text-left text-sm whitespace-nowrap min-w-[400px]">
-                        <thead><tr className="border-b border-slate-800 text-slate-400"><th className="pb-2">วันที่</th><th className="pb-2">รายการ</th><th className="pb-2 text-right">เปลี่ยนแปลง (หน่วยฐาน)</th></tr></thead>
-                        <tbody>
-                          {adjustments.map(a=>{
-                            const isRecv = a.type.includes("Receive");
-                            return (
-                                <tr key={a.id} className="border-b border-slate-800/50">
-                                    <td className="py-2">{a.date}</td>
-                                    <td className="py-2 text-white">{a.ingName} <br/><span className="text-xs text-slate-500">{a.type} | {a.reason}</span></td>
-                                    <td className={`py-2 font-bold text-right ${isRecv?'text-emerald-400':'text-rose-400'}`}>{isRecv?'+':'-'}{a.qty} {a.unit}</td>
-                                </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
+                <Card title="ประวัติการรับเข้า / ปรับลด" className="!p-0">
+                  <div className="overflow-x-auto p-4">{adjs.length===0?<p className="text-slate-500 text-center">ไม่มีประวัติ</p>:<table className="w-full text-left text-sm whitespace-nowrap"><thead className="border-b border-slate-800 text-slate-400"><tr><th className="pb-2">วันที่</th><th className="pb-2">รายการ</th><th className="pb-2 text-right">จำนวน</th></tr></thead><tbody>{adjs.map(a=>{const r = a.type==="รับเข้า"; return <tr key={a.id} className="border-b border-slate-800/50"><td className="py-2">{a.date}</td><td className="py-2 text-white">{a.ingName} <span className="text-xs text-slate-500">({a.type})</span></td><td className={`py-2 font-bold text-right ${r?'text-emerald-400':'text-rose-400'}`}>{r?'+':'-'}{a.qty}{a.unit}</td></tr>})}</tbody></table>}</div>
                 </Card>
               </div>
             </div>
           );
         }
 
-        // ─── SPRINT 2: RECIPE PAGE ───────────────────────────────────────────────────
-        function RecipePage({ ingredients, recipes, setRecipes }) {
-          const [selected, setSelected] = useState(recipes[0]?.id||null);
-          const [modalNew, setModalNew] = useState(false);
-          const [modalAddIng, setModalAddIng] = useState(false);
-          const [newName, setNewName] = useState("");
-          const [newPrice, setNewPrice] = useState("");
-          const [toast, showToast] = useToast();
+        // ─── RECIPE PAGE ───────────────────────────────────────────────────────────
+        function RecipePage({ ings, recipes, setRecipes }) {
+          const [sel, setSel] = useState(recipes[0]?.id||null);
+          const [mNew, setMNew] = useState(false); const [mAdd, setMAdd] = useState(false);
+          const [nName, setNName] = useState(""); const [nPrice, setNPrice] = useState("");
+          const r = recipes.find(x=>x.id===sel);
 
-          const recipe = recipes.find(r=>r.id===selected)||null;
-          const cost = useMemo(()=>recipe?calcRecipeCost(recipe.lines,ingredients):0,[recipe,ingredients]);
-
-          const createRecipe = () => {
-            if (!newName) return;
-            const id = Math.max(0,...recipes.map(r=>r.id))+1;
-            setRecipes(p=>[...p,{id,name:newName,price:Number(newPrice||0),lines:[]}]);
-            setSelected(id); setModalNew(false); setNewName(""); setNewPrice(""); showToast("สร้างเมนูใหม่แล้ว");
-          };
-
-          const addIngToRecipe = (ingId) => {
-            setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:[...r.lines,{ingId,qty:1}]}:r));
-            setModalAddIng(false);
-          };
-
-          const changeQty = (ingId, val) => {
-            setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:r.lines.map(l=>l.ingId===ingId?{...l,qty:val}:l)}:r));
-          };
+          const create = () => { setRecipes(p=>[...p,{id:Date.now(),name:nName,price:Number(nPrice),lines:[]}]); setMNew(false); setSel(Date.now()); setNName(""); };
+          const addIng = (id) => { setRecipes(p=>p.map(x=>x.id===r.id?{...x,lines:[...x.lines,{ingId:id,qty:1}]}:x)); setMAdd(false); };
+          const chgQty = (id, v) => setRecipes(p=>p.map(x=>x.id===r.id?{...x,lines:x.lines.map(l=>l.ingId===id?{...l,qty:v}:l)}:x));
 
           return (
             <div className="flex flex-col lg:flex-row gap-4 h-full">
-              <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                <Card title="เมนูทั้งหมด" action={<Btn size="sm" onClick={()=>setModalNew(true)}>{Icon.plus} เมนูใหม่</Btn>} className="flex-1 !p-0">
-                  <div className="overflow-y-auto max-h-[50vh] lg:max-h-[70vh]">
-                    {recipes.map(r=>(
-                      <div key={r.id} onClick={()=>setSelected(r.id)} className={`p-4 border-b border-slate-800 cursor-pointer transition-colors ${selected===r.id?'bg-amber-500/10 border-l-4 border-l-amber-500':'hover:bg-slate-800/50'}`}>
-                        <p className="text-white font-bold">{r.name}</p>
-                        <p className="text-xs text-slate-400 mt-1">ราคาขาย: {fmtCost(r.price)} | ต้นทุน: {fmtCost(calcRecipeCost(r.lines,ingredients))}</p>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-
+              <div className="w-full lg:w-1/3 flex flex-col gap-4"><Card title="เมนูทั้งหมด" action={<Btn size="sm" onClick={()=>setMNew(true)}>{Icon.plus} เมนูใหม่</Btn>} className="flex-1 !p-0"><div className="overflow-y-auto max-h-[60vh]">{recipes.map(x=><div key={x.id} onClick={()=>setSel(x.id)} className={`p-4 border-b border-slate-800 cursor-pointer ${sel===x.id?'bg-amber-500/10 border-l-4 border-l-amber-500':'hover:bg-slate-800/50'}`}><p className="font-bold text-white">{x.name}</p></div>)}</div></Card></div>
               <div className="w-full lg:w-2/3 flex flex-col gap-4">
-                {!recipe ? <div className="text-center text-slate-500 py-10 border border-slate-800 rounded-2xl">เลือกเมนูเพื่อดูสูตร</div> : (
-                  <>
-                    <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-2xl p-4 flex justify-between items-center">
-                      <div>
-                        <p className="text-amber-400 text-xs">สูตรสำหรับเมนู</p>
-                        <p className="text-white text-xl font-black">{recipe.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-400 text-xs">Food Cost / แก้ว</p>
-                        <p className="text-amber-400 text-2xl font-black">{fmtCost(cost)}</p>
-                      </div>
-                    </div>
-                    <Card title="วัตถุดิบในสูตร (ระบุเป็นหน่วยฐานเสมอ)" action={<Btn size="sm" onClick={()=>setModalAddIng(true)}>{Icon.plus} เพิ่มวัตถุดิบ</Btn>} className="!p-0">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm whitespace-nowrap min-w-[500px]">
-                          <thead><tr className="border-b border-slate-800 bg-slate-900/50"><th className="p-3">วัตถุดิบ</th><th className="p-3">ปริมาณใช้/แก้ว</th><th className="p-3 text-right">ต้นทุนย่อย</th><th className="p-3"></th></tr></thead>
-                          <tbody>
-                            {recipe.lines.map(line=>{
-                              const ing=ingredients.find(i=>i.id===line.ingId);
-                              if(!ing) return null;
-                              return (
-                                <tr key={line.ingId} className="border-b border-slate-800/50">
-                                  <td className="p-3 text-white">{ing.name}</td>
-                                  <td className="p-3"><input type="number" className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white" value={line.qty} onChange={e=>changeQty(line.ingId,e.target.value)} /> {ing.unit}</td>
-                                  <td className="p-3 text-right text-emerald-400">{fmtCost(ing.costPerUnit*Number(line.qty))}</td>
-                                  <td className="p-3 text-center"><button onClick={()=>setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:r.lines.filter(l=>l.ingId!==line.ingId)}:r))} className="text-slate-500 hover:text-rose-400">{Icon.trash}</button></td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </Card>
-                  </>
-                )}
+                {r && (<><div className="bg-gradient-to-br from-amber-500/10 to-transparent p-4 rounded-xl border border-amber-500/20 flex justify-between"><div><p className="text-amber-400 text-xs">สูตรสำหรับ</p><p className="text-xl text-white font-black">{r.name}</p></div><div className="text-right"><p className="text-slate-400 text-xs">ต้นทุน / แก้ว</p><p className="text-2xl text-amber-400 font-black">{fmtCost(calcRecipeCost(r.lines,ings))}</p></div></div><Card title="วัตถุดิบ (หน่วยฐาน)" action={<Btn size="sm" onClick={()=>setMAdd(true)}>{Icon.plus} เพิ่ม</Btn>} className="!p-0"><div className="overflow-x-auto"><table className="w-full text-left text-sm whitespace-nowrap min-w-[400px]"><thead className="bg-slate-900/50 border-b border-slate-800"><tr><th className="p-3">วัตถุดิบ</th><th className="p-3">ปริมาณใช้</th><th className="p-3 text-right">ต้นทุน</th><th className="p-3"></th></tr></thead><tbody>{r.lines.map(l=>{ const i=ings.find(x=>x.id===l.ingId); if(!i)return null; return <tr key={l.ingId} className="border-b border-slate-800/50"><td className="p-3 text-white">{i.name}</td><td className="p-3"><input type="number" className="w-20 bg-slate-800 border-slate-700 rounded px-2 py-1 text-white" value={l.qty} onChange={e=>chgQty(l.ingId,e.target.value)}/> {i.unit}</td><td className="p-3 text-right text-emerald-400">{fmtCost(i.costPerUnit*l.qty)}</td><td className="p-3 text-center"><button onClick={()=>setRecipes(p=>p.map(x=>x.id===r.id?{...x,lines:x.lines.filter(y=>y.ingId!==l.ingId)}:x))} className="text-slate-500 hover:text-rose-400">{Icon.trash}</button></td></tr>})}</tbody></table></div></Card></>)}
               </div>
-
-              <Modal open={modalNew} onClose={()=>setModalNew(false)} title="สร้างเมนูใหม่">
-                <div className="flex flex-col gap-4">
-                  <Field label="ชื่อเมนู"><input className={inp} value={newName} onChange={e=>setNewName(e.target.value)}/></Field>
-                  <Field label="ราคาขาย (฿)"><input type="number" className={inp} value={newPrice} onChange={e=>setNewPrice(e.target.value)}/></Field>
-                  <Btn onClick={createRecipe} disabled={!newName}>ยืนยัน</Btn>
-                </div>
-              </Modal>
-
-              <Modal open={modalAddIng} onClose={()=>setModalAddIng(false)} title="เลือกวัตถุดิบเข้าสูตร">
-                <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
-                  {ingredients.filter(i=>!recipe?.lines.find(l=>l.ingId===i.id)).map(ing=>(
-                    <button key={ing.id} onClick={()=>addIngToRecipe(ing.id)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-left text-white font-semibold transition-colors">{ing.name} <span className="text-xs text-slate-400 font-normal">({fmtCost(ing.costPerUnit)}/{ing.unit})</span></button>
-                  ))}
-                </div>
-              </Modal>
+              <Modal open={mNew} onClose={()=>setMNew(false)} title="สร้างเมนูใหม่"><div className="flex flex-col gap-4"><Field label="ชื่อเมนู"><input className={inp} value={nName} onChange={e=>setNName(e.target.value)}/></Field><Field label="ราคาขาย (฿)"><input type="number" className={inp} value={nPrice} onChange={e=>setNPrice(e.target.value)}/></Field><Btn onClick={create} disabled={!nName}>ยืนยัน</Btn></div></Modal>
+              <Modal open={mAdd} onClose={()=>setMAdd(false)} title="เลือกวัตถุดิบเข้าสูตร"><div className="flex flex-col gap-2 max-h-72 overflow-y-auto">{ings.filter(i=>!r?.lines.find(l=>l.ingId===i.id)).map(i=><button key={i.id} onClick={()=>addIng(i.id)} className="p-3 bg-slate-800 hover:bg-slate-700 text-left text-white rounded-xl font-semibold">{i.name}</button>)}</div></Modal>
             </div>
           );
         }
 
-        // ─── ROOT APP ─────────────────────────────────────────────────────────────────
+        // ─── APP ROOT ──────────────────────────────────────────────────────────────
         function POSApp() {
-          const [active, setActive] = useState("dashboard"); // เปลี่ยนกลับมาโชว์ Dashboard เป็นหน้าแรก
-          const [sidebar, setSidebar] = useState(false);
-          const [ingredients, setIngredients] = useState(INIT_INGREDIENTS);
-          const [recipes, setRecipes] = useState(INIT_RECIPES);
-          const [adjustments, setAdjustments] = useState(INIT_ADJUSTMENTS);
-          const [orders, setOrders] = useState([]);
+          const [act, setAct] = useState("dashboard"); const [sb, setSb] = useState(false);
+          const [ings, setIngs] = useState(INIT_INGREDIENTS); const [recs, setRecs] = useState(INIT_RECIPES);
+          const [adjs, setAdjs] = useState(INIT_ADJUSTMENTS); const [ords, setOrds] = useState([]);
           const [toast, showToast] = useToast();
 
-          const handleOrderComplete = (newOrder) => {
-            setOrders(prev => [newOrder, ...prev]);
-            showToast(`รับออเดอร์และตัดสต็อกสำเร็จ!`);
-          };
-
           return (
-            <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-950 font-sans selection:bg-amber-500/30">
+            <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-950 font-sans">
               <Toast msg={toast} />
-              
-              <aside className={`flex flex-col bg-slate-900 border-r border-slate-800 z-20 transition-all ${sidebar ? 'w-56 absolute inset-y-0 shadow-2xl' : 'w-16 hidden md:flex'}`}>
-                <div className="h-16 border-b border-slate-800 flex items-center px-4 justify-between">
-                  <div className="flex items-center text-xl">🧋 <span className={`ml-2 font-bold text-white text-base truncate ${sidebar ? 'block' : 'hidden'}`}>ระบบร้านน้ำ</span></div>
-                  <button className="md:hidden text-slate-400" onClick={()=>setSidebar(false)}>{Icon.x}</button>
-                </div>
-                <nav className="flex-1 p-2 space-y-2 overflow-y-auto">
-                  {SIDEBAR_ITEMS.map(item=>(
-                    <button key={item.id} onClick={()=>{setActive(item.id); setSidebar(false);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${active===item.id||(active==='stock_adj'&&item.id==='stock')?'bg-amber-500 text-slate-950 font-bold':'text-slate-400 hover:bg-slate-800'}`}>
-                      <span className="flex-shrink-0">{item.icon}</span> <span className={`truncate ${sidebar ? 'block' : 'hidden'}`}>{item.label}</span>
-                    </button>
-                  ))}
-                </nav>
+              <aside className={`flex flex-col bg-slate-900 border-r border-slate-800 z-20 transition-all ${sb?'w-56 absolute inset-y-0 shadow-2xl':'w-16 hidden md:flex'}`}>
+                <div className="h-16 border-b border-slate-800 flex items-center px-4 justify-between text-xl">🧋 <span className={`ml-2 font-bold text-white text-base truncate ${sb?'block':'hidden'}`}>ระบบร้านน้ำ</span><button className="md:hidden text-slate-400" onClick={()=>setSb(false)}>{Icon.x}</button></div>
+                <nav className="flex-1 p-2 space-y-2">{SIDEBAR_ITEMS.map(i=><button key={i.id} onClick={()=>{setAct(i.id);setSb(false);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${act===i.id||(act==='stock_adj'&&i.id==='stock')?'bg-amber-500 text-slate-950 font-bold':'text-slate-400 hover:bg-slate-800'}`}><span className="text-lg">{i.icon}</span><span className={`truncate ${sb?'block':'hidden'}`}>{i.label}</span></button>)}</nav>
               </aside>
-
               <div className="flex-1 flex flex-col min-w-0 h-full relative">
-                <header className="h-16 flex-shrink-0 bg-slate-900 border-b border-slate-800 text-white font-bold flex items-center px-4 justify-between">
-                  <div className="flex items-center gap-3">
-                    <button className="md:hidden text-slate-400 hover:text-white" onClick={()=>setSidebar(true)}>☰</button>
-                    <span className="truncate">{active === 'stock_adj' ? 'ประวัติสต็อก' : SIDEBAR_ITEMS.find(i=>i.id===active)?.label}</span>
-                  </div>
-                  <span className="text-emerald-400 text-xs md:text-sm bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">{Icon.check} P&L System Added</span>
+                <header className="h-16 flex-shrink-0 bg-slate-900 border-b border-slate-800 text-white font-bold flex items-center px-4 justify-between gap-2">
+                  <div className="flex items-center gap-3"><button className="md:hidden text-slate-400 text-xl" onClick={()=>setSb(true)}>☰</button><span className="truncate">{SIDEBAR_ITEMS.find(i=>i.id===act)?.label || (act==='stock_adj'?'ประวัติสต็อก':'System')}</span></div>
+                  <span className="text-emerald-400 text-xs bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20 whitespace-nowrap">{Icon.check} Optimized & Merged</span>
                 </header>
-                
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-4 pb-20 md:pb-4">
-                  {active==="pos" && <POSPage recipes={recipes} ingredients={ingredients} setIngredients={setIngredients} onOrderComplete={handleOrderComplete} />}
-                  {active==="dashboard" && <Dashboard orders={orders} />}
-                  {active==="stock" && <InventoryPage ingredients={ingredients} setIngredients={setIngredients} adjustments={adjustments} setAdjustments={setAdjustments} onNavAdj={()=>setActive('stock_adj')} />}
-                  {active==="stock_adj" && <StockAdjPage ingredients={ingredients} setIngredients={setIngredients} adjustments={adjustments} setAdjustments={setAdjustments} onBack={()=>setActive('stock')} />}
-                  {active==="recipe" && <RecipePage ingredients={ingredients} recipes={recipes} setRecipes={setRecipes} />}
+                  {act==="dashboard" && <Dashboard orders={ords} />}
+                  {act==="pos" && <POSPage recipes={recs} ingredients={ings} setIngredients={setIngs} onOrderComplete={o=>{setOrds(p=>[o,...p]); showToast("รับออเดอร์และตัดสต็อกสำเร็จ!");}} />}
+                  {act==="stock" && <InventoryPage ings={ings} setIngs={setIngs} adjs={adjs} setAdjs={setAdjs} onNavAdj={()=>setAct('stock_adj')} />}
+                  {act==="stock_adj" && <StockAdjPage ings={ings} setIngs={setIngs} adjs={adjs} setAdjs={setAdjs} onBack={()=>setAct('stock')} />}
+                  {act==="recipe" && <RecipePage ings={ings} recipes={recs} setRecipes={setRecs} />}
                 </main>
               </div>
             </div>
