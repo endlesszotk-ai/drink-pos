@@ -13,7 +13,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useEffect } = React;
 
         // ─── ICONS ────────────────────────────────────────────────────────────────────
         const Icon = {
@@ -26,9 +26,11 @@
           edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
           trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
           x: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M18 6L6 18M6 6l12 12"/></svg>,
-          warn: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
           check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>,
           back: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>,
+          inbox: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>,
+          trendUp: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+          trendDown: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
         };
 
         const SIDEBAR_ITEMS = [
@@ -38,37 +40,39 @@
           { id: "recipe",    label: "สูตรอาหาร",   icon: Icon.recipe },
         ];
 
+        // ─── UNIT MULTIPLIERS ────────────────────────────────────────────────────────
+        const UNIT_FAMILIES = {
+          "กรัม": [{ name: "กรัม", mult: 1 }, { name: "กิโลกรัม", mult: 1000 }],
+          "มล.": [{ name: "มล.", mult: 1 }, { name: "ลิตร", mult: 1000 }],
+          "ชิ้น": [{ name: "ชิ้น", mult: 1 }, { name: "แพ็ค (50 ชิ้น)", mult: 50 }, { name: "แพ็ค (100 ชิ้น)", mult: 100 }],
+        };
+
         // ─── MOCK DATA ────────────────────────────────────────────────────────────────
         const INIT_INGREDIENTS = [
           { id:1,  name:"ใบชาไทย",      type:"วัตถุดิบ",    unit:"กรัม",  stock:2000, costPerUnit:0.18, minStock:500  },
           { id:2,  name:"นมข้นหวาน",    type:"วัตถุดิบ",    unit:"มล.",   stock:3500, costPerUnit:0.05, minStock:500  },
           { id:3,  name:"นมสด",         type:"วัตถุดิบ",    unit:"มล.",   stock:8000, costPerUnit:0.04, minStock:1000 },
-          { id:7,  name:"น้ำเชื่อม",    type:"วัตถุดิบ",    unit:"มล.",   stock:5000, costPerUnit:0.02, minStock:500  },
           { id:8,  name:"แก้วพลาสติก",  type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:450,  costPerUnit:2.00, minStock:100  },
-          { id:9,  name:"หลอดดูด",      type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:490,  costPerUnit:0.30, minStock:100  },
         ];
 
         const INIT_RECIPES = [
-          { id:1, name:"ชาไทยเย็น", price: 45, lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:8,qty:1},{ingId:9,qty:1}] },
-          { id:2, name:"ชาไทยปั่น", price: 55, lines:[{ingId:1,qty:18},{ingId:2,qty:40},{ingId:3,qty:80},{ingId:8,qty:1},{ingId:9,qty:1}] },
-          { id:3, name:"นมสดคาราเมล", price: 50, lines:[{ingId:3,qty:150},{ingId:7,qty:20},{ingId:8,qty:1},{ingId:9,qty:1}] },
+          { id:1, name:"ชาไทยเย็น", price: 45, lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:8,qty:1}] },
         ];
 
-        const INIT_ADJUSTMENTS = [];
-
         // ─── HELPERS ─────────────────────────────────────────────────────────────────
-        const fmtCost = (n) => `฿${Number(n).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        const fmtCost = (n) => `฿${Number(n).toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 4})}`;
+        const fmtDisplay = (n) => `฿${Number(n).toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
         const calcRecipeCost = (lines, ings) => lines.reduce((s, l) => { const i = ings.find(x => x.id === l.ingId); return s + (i ? i.costPerUnit * Number(l.qty) : 0); }, 0);
 
         function useToast() {
           const [msg, setMsg] = useState("");
-          const show = (m) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
+          const show = (m) => { setMsg(m); setTimeout(() => setMsg(""), 3500); };
           return [msg, show];
         }
 
         // ─── SHARED UI ───────────────────────────────────────────────────────────────
         function Badge({ children, color="slate" }) {
-          const map = { slate:"bg-slate-700 text-slate-300", amber:"bg-amber-500/20 text-amber-400", rose:"bg-rose-500/20 text-rose-400", emerald:"bg-emerald-500/20 text-emerald-400", violet:"bg-violet-500/20 text-violet-400" };
+          const map = { slate:"bg-slate-700 text-slate-300", amber:"bg-amber-500/20 text-amber-400", rose:"bg-rose-500/20 text-rose-400", emerald:"bg-emerald-500/20 text-emerald-400", violet:"bg-violet-500/20 text-violet-400", sky:"bg-sky-500/20 text-sky-400" };
           return <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${map[color]}`}>{children}</span>;
         }
 
@@ -87,7 +91,7 @@
         function Btn({ children, onClick, variant="primary", size="md", className="", disabled=false }) {
           const base = "inline-flex items-center gap-2 font-semibold rounded-xl touch-manipulation transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none justify-center";
           const sz = { sm:"px-3 py-1.5 text-xs min-h-[32px]", md:"px-4 py-2.5 text-sm min-h-[42px]", lg:"px-5 py-3 text-sm min-h-[52px]" };
-          const va = { primary:"bg-amber-500 hover:bg-amber-400 text-slate-950", danger:"bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30", ghost:"bg-slate-800 hover:bg-slate-700 text-slate-300" };
+          const va = { primary:"bg-amber-500 hover:bg-amber-400 text-slate-950", danger:"bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30", ghost:"bg-slate-800 hover:bg-slate-700 text-slate-300", emerald:"bg-emerald-500 hover:bg-emerald-400 text-slate-950" };
           return <button disabled={disabled} onClick={onClick} className={`${base} ${sz[size]} ${va[variant]} ${className}`}>{children}</button>;
         }
 
@@ -124,39 +128,73 @@
           </div>
         ) : null;
 
-        // ─── SPRINT 3: DASHBOARD PAGE ────────────────────────────────────────────────
+        // ─── SPRINT 3: DASHBOARD PAGE (UPGRADED WITH P&L) ────────────────────────────
         function Dashboard({ orders }) {
+          // 1. คำนวณยอดขายรับสุทธิ
           const totalNet = orders.reduce((sum, o) => sum + o.net, 0);
+          
+          // 2. คำนวณต้นทุนวัตถุดิบ (COGS) ที่ขายออกไปแล้ว
+          const totalCogs = orders.reduce((sum, o) => sum + (o.cogs || 0), 0);
+          
+          // 3. กำไรสุทธิ
+          const netProfit = totalNet - totalCogs;
+          const profitMargin = totalNet > 0 ? (netProfit / totalNet) * 100 : 0;
+          const isProfit = netProfit >= 0;
+
           return (
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="bg-gradient-to-br from-emerald-600/20 to-teal-900/20 border-emerald-500/30 !p-0">
+              {/* P&L Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 !p-0">
                   <div className="p-4">
-                    <p className="text-emerald-400 text-sm">รายได้สุทธิวันนี้ (Net)</p>
-                    <p className="text-3xl text-white font-black mt-1 break-words">{fmtCost(totalNet)}</p>
+                    <p className="text-slate-400 text-xs">ยอดขายรับสุทธิ (Net Rev.)</p>
+                    <p className="text-2xl text-white font-black mt-1">{fmtDisplay(totalNet)}</p>
+                    <p className="text-xs text-slate-500 mt-1">หลังหัก GP/Ads แล้ว</p>
                   </div>
                 </Card>
-                <Card className="bg-gradient-to-br from-blue-600/20 to-sky-900/20 border-blue-500/30 !p-0">
+                <Card className="bg-gradient-to-br from-rose-900/40 to-slate-900 border-rose-900/50 !p-0">
                   <div className="p-4">
-                    <p className="text-blue-400 text-sm">จำนวนออเดอร์</p>
-                    <p className="text-3xl text-white font-black mt-1 break-words">{orders.length} บิล</p>
+                    <p className="text-rose-400 text-xs">ต้นทุนวัตถุดิบ (COGS)</p>
+                    <p className="text-2xl text-rose-400 font-black mt-1">-{fmtDisplay(totalCogs)}</p>
+                    <p className="text-xs text-rose-500/70 mt-1">Cost of Goods Sold</p>
+                  </div>
+                </Card>
+                <Card className={`bg-gradient-to-br border !p-0 lg:col-span-2 ${isProfit ? 'from-emerald-900/80 to-teal-900/40 border-emerald-500/50' : 'from-rose-900/80 to-red-900/40 border-rose-500/50'}`}>
+                  <div className="p-4 flex justify-between items-end">
+                    <div>
+                      <p className={`text-xs font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>กำไรสุทธิ (Net Profit)</p>
+                      <p className={`text-3xl lg:text-4xl font-black mt-1 flex items-center gap-2 ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isProfit ? Icon.trendUp : Icon.trendDown}
+                        {fmtDisplay(netProfit)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-xs ${isProfit ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>Margin (อัตรากำไร)</p>
+                      <p className={`text-xl font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>{profitMargin.toFixed(1)}%</p>
+                    </div>
                   </div>
                 </Card>
               </div>
-              <Card title="ออเดอร์ล่าสุด" className="!p-0">
-                {orders.length === 0 ? <p className="text-slate-500 text-center py-8">ยังไม่มีออเดอร์วันนี้</p> : (
+
+              <Card title={`ประวัติการขายวันนี้ (${orders.length} บิล)`} className="!p-0">
+                {orders.length === 0 ? <p className="text-slate-500 text-center py-8">ยังไม่มีออเดอร์</p> : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap min-w-[500px]">
-                      <thead><tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50"><th className="p-3">เวลา</th><th className="p-3">โหมด</th><th className="p-3">รายการ</th><th className="p-3 text-right">ยอดรับสุทธิ</th></tr></thead>
+                    <table className="w-full text-left text-sm whitespace-nowrap min-w-[700px]">
+                      <thead><tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50"><th className="p-3">เวลา</th><th className="p-3">โหมด</th><th className="p-3">รายการ</th><th className="p-3 text-right">ยอดรับ (Net)</th><th className="p-3 text-right text-rose-400">ต้นทุน (COGS)</th><th className="p-3 text-right text-emerald-400">กำไร</th></tr></thead>
                       <tbody>
-                        {orders.map((o,i) => (
-                          <tr key={i} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                            <td className="p-3 text-slate-400">{o.time}</td>
-                            <td className="p-3"><Badge color={o.type==='storefront'?'amber':'rose'}>{o.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่'}</Badge></td>
-                            <td className="p-3 text-white break-words whitespace-normal max-w-[200px]">{o.items}</td>
-                            <td className="p-3 text-right text-emerald-400 font-bold">{fmtCost(o.net)}</td>
-                          </tr>
-                        ))}
+                        {orders.map((o,i) => {
+                          const orderProfit = o.net - o.cogs;
+                          return (
+                            <tr key={i} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                              <td className="p-3 text-slate-400">{o.time}</td>
+                              <td className="p-3"><Badge color={o.type==='storefront'?'amber':'rose'}>{o.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่'}</Badge></td>
+                              <td className="p-3 text-white break-words whitespace-normal max-w-[200px]">{o.items}</td>
+                              <td className="p-3 text-right text-white font-bold">{fmtDisplay(o.net)}</td>
+                              <td className="p-3 text-right text-rose-400">-{fmtDisplay(o.cogs)}</td>
+                              <td className={`p-3 text-right font-bold ${orderProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmtDisplay(orderProfit)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -166,7 +204,7 @@
           );
         }
 
-        // ─── SPRINT 3: POS PAGE ──────────────────────────────────────────────────────
+        // ─── SPRINT 3: POS PAGE (UPGRADED WITH COGS SNAPSHOT) ────────────────────────
         function POSPage({ recipes, ingredients, setIngredients, onOrderComplete }) {
           const [orderType, setOrderType] = useState('storefront');
           const [cart, setCart] = useState([]);
@@ -191,22 +229,35 @@
 
           const checkout = () => {
             if (cart.length === 0) return;
+            
             let stockDeductions = {};
+            let orderTotalCogs = 0; // ตัวแปรเก็บต้นทุนรวมของบิลนี้
+
             cart.forEach(cartItem => {
                 const recipe = recipes.find(r => r.id === cartItem.id);
                 if(recipe) {
+                    // คำนวณต้นทุนต่อแก้ว ณ วินาทีนี้ (Snapshot)
+                    const itemCogs = calcRecipeCost(recipe.lines, ingredients);
+                    orderTotalCogs += (itemCogs * cartItem.qty);
+
+                    // เก็บยอดสำหรับตัดสต็อก
                     recipe.lines.forEach(line => {
                         stockDeductions[line.ingId] = (stockDeductions[line.ingId] || 0) + (line.qty * cartItem.qty);
                     });
                 }
             });
+
+            // ตัดสต็อก
             setIngredients(prev => prev.map(ing => stockDeductions[ing.id] ? { ...ing, stock: Math.max(0, ing.stock - stockDeductions[ing.id]) } : ing));
+            
+            // ส่งบิลเข้าระบบ พร้อมแนบ cogs ไปด้วย
             onOrderComplete({
               id: `#${Math.floor(1000 + Math.random() * 9000)}`,
               type: orderType,
               items: cart.map(i => `${i.name} x${i.qty}`).join(', '),
               gross: grossTotal,
               net: netRevenue,
+              cogs: orderTotalCogs, // <--- เพิ่มต้นทุนที่คำนวณได้
               time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
             });
             setCart([]); setAdsDiscount(0);
@@ -224,7 +275,7 @@
                     <button key={r.id} onClick={() => addToCart(r)} className="bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-2xl p-4 text-left transition-all active:scale-95 flex flex-col items-center text-center">
                       <div className="text-4xl mb-2">🥤</div>
                       <p className="text-white font-bold truncate w-full">{r.name}</p>
-                      <p className="text-amber-400 text-sm mt-1">{fmtCost(r.price)}</p>
+                      <p className="text-amber-400 text-sm mt-1">{fmtDisplay(r.price)}</p>
                     </button>
                   ))}
                 </div>
@@ -239,7 +290,7 @@
                         <div key={item.id} className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
                           <div className="min-w-0 flex-1">
                             <p className="text-white font-bold text-sm truncate">{item.name}</p>
-                            <p className="text-slate-400 text-xs">{fmtCost(item.price)}</p>
+                            <p className="text-slate-400 text-xs">{fmtDisplay(item.price)}</p>
                           </div>
                           <div className="flex items-center gap-3 bg-slate-900 rounded-lg p-1">
                             <button onClick={() => updateQty(item.id, -1)} className="p-1 text-slate-400 hover:text-rose-400">{item.qty===1 ? Icon.trash : Icon.minus}</button>
@@ -252,15 +303,15 @@
                   )}
                 </div>
                 <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col gap-3 flex-shrink-0">
-                  <div className="flex justify-between text-slate-400 text-sm"><span>ยอดรวมปกติ</span><span className="text-white">{fmtCost(grossTotal)}</span></div>
+                  <div className="flex justify-between text-slate-400 text-sm"><span>ยอดรวมปกติ</span><span className="text-white">{fmtDisplay(grossTotal)}</span></div>
                   {orderType === 'delivery' && (
                     <div className="flex flex-col gap-2 bg-orange-500/10 border border-orange-500/30 p-3 rounded-xl">
                       <div className="flex items-center justify-between text-sm"><span className="text-orange-400">หัก GP Platform (%)</span><input type="number" value={gpPercent} onChange={(e)=>setGpPercent(Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded text-right px-1 text-white" /></div>
-                      <div className="flex justify-between text-rose-400 text-xs"><span>มูลค่าที่โดนหัก</span><span>-{fmtCost(gpDeduction)}</span></div>
+                      <div className="flex justify-between text-rose-400 text-xs"><span>มูลค่าที่โดนหัก</span><span>-{fmtDisplay(gpDeduction)}</span></div>
                       <div className="flex items-center justify-between text-sm mt-1"><span className="text-orange-400">หักส่วนลด/Ads (฿)</span><input type="number" value={adsDiscount} onChange={(e)=>setAdsDiscount(Number(e.target.value))} className="w-16 bg-slate-900 border border-slate-700 rounded text-right px-1 text-white" /></div>
                     </div>
                   )}
-                  <div className="flex justify-between items-center mt-2"><span className="text-lg text-emerald-400 font-bold">ยอดรับสุทธิ</span><span className="text-3xl text-emerald-400 font-black">{fmtCost(netRevenue)}</span></div>
+                  <div className="flex justify-between items-center mt-2"><span className="text-lg text-emerald-400 font-bold">ยอดรับสุทธิ</span><span className="text-3xl text-emerald-400 font-black">{fmtDisplay(netRevenue)}</span></div>
                   <button onClick={checkout} disabled={cart.length === 0} className="w-full py-4 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:bg-slate-800 text-slate-950 font-black text-lg rounded-xl transition-all shadow-lg active:scale-95">ยืนยัน & ตัดสต็อก</button>
                 </div>
               </div>
@@ -268,31 +319,76 @@
           );
         }
 
-        // ─── SPRINT 2: INVENTORY & STOCK ADJUSTMENT PAGE ──────────────────────────────
+        // ─── SPRINT 2: INVENTORY PAGE (WITH INITIAL COST CLARITY) ───────────────────
         const EMPTY_ING = { name:"", type:"วัตถุดิบ", unit:"กรัม", stock:"", costPerUnit:"", minStock:"" };
+        const EMPTY_RECV = { ingId:"", qty:"", mult: 1, displayUnit: "", totalPrice:"" };
 
         function InventoryPage({ ingredients, setIngredients, adjustments, setAdjustments, onNavAdj }) {
-          const [modal, setModal] = useState(false);
-          const [form, setForm] = useState(EMPTY_ING);
+          const [modalAdd, setModalAdd] = useState(false);
+          const [modalReceive, setModalReceive] = useState(false);
+          const [formAdd, setFormAdd] = useState(EMPTY_ING);
+          const [formRecv, setFormRecv] = useState(EMPTY_RECV);
           const [toast, showToast] = useToast();
 
-          const save = () => {
-            if (!form.name||!form.stock||!form.costPerUnit) return;
+          const selRecvIng = ingredients.find(i=>i.id===Number(formRecv.ingId));
+          const unitOptions = selRecvIng ? (UNIT_FAMILIES[selRecvIng.unit] || [{name: selRecvIng.unit, mult: 1}]) : [];
+
+          useEffect(() => {
+              if (selRecvIng && unitOptions.length > 0) {
+                  setFormRecv(f => ({...f, mult: unitOptions[0].mult, displayUnit: unitOptions[0].name}));
+              }
+          }, [formRecv.ingId]);
+
+          const baseQtyToAdd = Number(formRecv.qty || 0) * Number(formRecv.mult || 1);
+          const currentTotalVal = selRecvIng ? selRecvIng.stock * selRecvIng.costPerUnit : 0;
+          const newTotalVal = currentTotalVal + Number(formRecv.totalPrice || 0);
+          const newStockQty = selRecvIng ? selRecvIng.stock + baseQtyToAdd : 0;
+          const previewAvgCost = newStockQty > 0 ? newTotalVal / newStockQty : 0;
+
+          const saveNewIng = () => {
+            if (!formAdd.name||!formAdd.stock||!formAdd.costPerUnit) return;
             const id = Math.max(0,...ingredients.map(i=>i.id))+1;
-            setIngredients(p=>[...p,{...form, id, stock:Number(form.stock), costPerUnit:Number(form.costPerUnit), minStock:Number(form.minStock||0)}]);
-            setModal(false); showToast("เพิ่มรายการแล้ว");
+            setIngredients(p=>[...p,{...formAdd, id, stock:Number(formAdd.stock), costPerUnit:Number(formAdd.costPerUnit), minStock:Number(formAdd.minStock||0)}]);
+            setModalAdd(false); showToast("สร้างรายการวัตถุดิบใหม่แล้ว");
+            setFormAdd(EMPTY_ING);
+          };
+
+          const saveReceiveStock = () => {
+            if (!formRecv.ingId || !formRecv.qty || !formRecv.totalPrice) return;
+            const ingId = Number(formRecv.ingId);
+            const rPrice = Number(formRecv.totalPrice);
+            const ing = ingredients.find(i => i.id === ingId);
+            if(!ing) return;
+
+            setIngredients(prev => prev.map(i => {
+                if(i.id === ingId) {
+                    const totalVal = (i.stock * i.costPerUnit) + rPrice;
+                    const newQty = i.stock + baseQtyToAdd;
+                    const avgCost = newQty > 0 ? totalVal / newQty : 0;
+                    return { ...i, stock: newQty, costPerUnit: avgCost };
+                }
+                return i;
+            }));
+
+            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:"Receive (รับเข้า)",qty:baseQtyToAdd,unit:ing.unit,reason:`ซื้อมา ${formRecv.qty} ${formRecv.displayUnit} ในราคา ${rPrice}บ.`,date:new Date().toLocaleDateString('th-TH')},...p]);
+            setModalReceive(false); showToast(`รับเข้า ${ing.name} เรียบร้อย (แปลงเป็น ${baseQtyToAdd} ${ing.unit})`);
+            setFormRecv(EMPTY_RECV);
           };
 
           return (
             <div className="flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <Btn onClick={()=>setModal(true)}>{Icon.plus} เพิ่มวัตถุดิบ</Btn>
-                <Btn variant="ghost" onClick={onNavAdj}>⚖️ ปรับปรุงสต็อกมือ</Btn>
+              <div className="flex flex-wrap gap-2 justify-between items-center">
+                <div className="flex gap-2">
+                    <Btn onClick={()=>setModalAdd(true)} variant="ghost">{Icon.plus} เพิ่มรายการใหม่</Btn>
+                    <Btn onClick={()=>setModalReceive(true)} variant="emerald">{Icon.inbox} รับของเข้าสต็อก (Purchasing)</Btn>
+                </div>
+                <Btn variant="ghost" onClick={onNavAdj}>⚖️ ตัดสต็อกทิ้ง/R&D</Btn>
               </div>
+              
               <Card className="!p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
-                    <thead><tr className="border-b border-slate-800 bg-slate-900/50"><th className="p-3">ชื่อ</th><th className="p-3">ประเภท</th><th className="p-3">สต็อกคงเหลือ</th><th className="p-3">ต้นทุน/หน่วย</th><th className="p-3 text-center">จัดการ</th></tr></thead>
+                    <thead><tr className="border-b border-slate-800 bg-slate-900/50"><th className="p-3">ชื่อรายการ</th><th className="p-3">ประเภท</th><th className="p-3">สต็อกคงเหลือ (หน่วยฐาน)</th><th className="p-3">ต้นทุนเฉลี่ย/หน่วย</th><th className="p-3 text-center">จัดการ</th></tr></thead>
                     <tbody>
                       {ingredients.map(ing=>{
                         const low = ing.stock <= ing.minStock;
@@ -300,8 +396,8 @@
                           <tr key={ing.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
                             <td className="p-3 text-white font-semibold break-words whitespace-normal max-w-[150px]">{ing.name}</td>
                             <td className="p-3"><Badge color={ing.type==="วัตถุดิบ"?"amber":"violet"}>{ing.type}</Badge></td>
-                            <td className="p-3"><span className={`font-bold ${low?'text-rose-400':'text-white'}`}>{ing.stock} {ing.unit}</span> {low && <span className="text-xs text-rose-500 ml-1">(ใกล้หมด)</span>}</td>
-                            <td className="p-3 text-slate-300">{fmtCost(ing.costPerUnit)}</td>
+                            <td className="p-3"><span className={`font-bold ${low?'text-rose-400':'text-emerald-400'}`}>{ing.stock} {ing.unit}</span> {low && <span className="text-xs text-rose-500 ml-1">(ใกล้หมด)</span>}</td>
+                            <td className="p-3 text-amber-400 font-bold">{fmtCost(ing.costPerUnit)}</td>
                             <td className="p-3 text-center"><button onClick={()=>setIngredients(p=>p.filter(i=>i.id!==ing.id))} className="text-slate-500 hover:text-rose-400 p-2">{Icon.trash}</button></td>
                           </tr>
                         );
@@ -310,68 +406,145 @@
                   </table>
                 </div>
               </Card>
-              <Modal open={modal} onClose={()=>setModal(false)} title="เพิ่มวัตถุดิบ / แพคเกจจิ้ง">
+
+              {/* Modal สร้างไอเทมใหม่ - ปรับคำอธิบายให้ชัดเจน */}
+              <Modal open={modalAdd} onClose={()=>setModalAdd(false)} title="เพิ่มวัตถุดิบ / แพคเกจจิ้งใหม่">
                 <div className="flex flex-col gap-4">
-                  <Field label="ชื่อ"><input className={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></Field>
+                  <Field label="ชื่อรายการ"><input className={inp} value={formAdd.name} onChange={e=>setFormAdd(f=>({...f,name:e.target.value}))}/></Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="ประเภท"><select className={sel} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}><option>วัตถุดิบ</option><option>แพคเกจจิ้ง</option></select></Field>
-                    <Field label="หน่วย"><select className={sel} value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}><option>กรัม</option><option>มล.</option><option>ชิ้น</option></select></Field>
+                    <Field label="ประเภท"><select className={sel} value={formAdd.type} onChange={e=>setFormAdd(f=>({...f,type:e.target.value}))}><option>วัตถุดิบ</option><option>แพคเกจจิ้ง</option></select></Field>
+                    <Field label="หน่วยฐาน (Base Unit)"><select className={sel} value={formAdd.unit} onChange={e=>setFormAdd(f=>({...f,unit:e.target.value}))}><option>กรัม</option><option>มล.</option><option>ชิ้น</option></select></Field>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="สต็อก"><input type="number" className={inp} value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))}/></Field>
-                    <Field label="แจ้งเตือนขั้นต่ำ"><input type="number" className={inp} value={form.minStock} onChange={e=>setForm(f=>({...f,minStock:e.target.value}))}/></Field>
+                    <Field label="ยอดยกมาเริ่มต้น"><input type="number" className={inp} value={formAdd.stock} onChange={e=>setFormAdd(f=>({...f,stock:e.target.value}))}/></Field>
+                    <Field label="แจ้งเตือนเมื่อต่ำกว่า"><input type="number" className={inp} value={formAdd.minStock} onChange={e=>setFormAdd(f=>({...f,minStock:e.target.value}))}/></Field>
                   </div>
-                  <Field label="ต้นทุน (฿)"><input type="number" className={inp} value={form.costPerUnit} onChange={e=>setForm(f=>({...f,costPerUnit:e.target.value}))}/></Field>
-                  <Btn onClick={save} disabled={!form.name}>บันทึก</Btn>
+                  <Field label="ต้นทุนเบื้องต้นต่อหน่วย (฿) *เพื่อเริ่มหาค่าเฉลี่ย"><input type="number" className={inp} value={formAdd.costPerUnit} onChange={e=>setFormAdd(f=>({...f,costPerUnit:e.target.value}))}/></Field>
+                  <Btn onClick={saveNewIng} disabled={!formAdd.name}>บันทึกรายการ</Btn>
+                </div>
+              </Modal>
+
+              <Modal open={modalReceive} onClose={()=>setModalReceive(false)} title="📥 รับของเข้าสต็อก (แปลงหน่วยอัตโนมัติ)">
+                <div className="flex flex-col gap-4">
+                  <Field label="เลือกวัตถุดิบที่ซื้อเข้ามา" required>
+                    <select className={sel} value={formRecv.ingId} onChange={e=>setFormRecv(f=>({...f,ingId:e.target.value}))}>
+                      <option value="">-- เลือกวัตถุดิบ --</option>
+                      {ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name} (คลังมี: {i.stock} {i.unit})</option>))}
+                    </select>
+                  </Field>
+
+                  {selRecvIng && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 bg-slate-800/30 p-3 rounded-xl border border-slate-700/50">
+                        <Field label="จำนวนที่ซื้อ" required>
+                            <input type="number" className={inp} placeholder="เช่น 1, 5" value={formRecv.qty} onChange={e=>setFormRecv(f=>({...f,qty:e.target.value}))}/>
+                        </Field>
+                        <Field label="เลือกหน่วยตอนซื้อ" required>
+                            <select className={sel} value={formRecv.mult} onChange={e=>{
+                                const selectedOption = unitOptions.find(u => u.mult === Number(e.target.value));
+                                setFormRecv(f=>({...f, mult: Number(e.target.value), displayUnit: selectedOption?.name || ''}))
+                            }}>
+                                {unitOptions.map(u => <option key={u.name} value={u.mult}>{u.name} (={u.mult} {selRecvIng.unit})</option>)}
+                            </select>
+                        </Field>
+                    </div>
+
+                    <Field label="ราคารวมที่จ่ายใบเสร็จนี้ (฿)" required>
+                        <input type="number" className={inp} placeholder="0.00" value={formRecv.totalPrice} onChange={e=>setFormRecv(f=>({...f,totalPrice:e.target.value}))}/>
+                    </Field>
+
+                    {formRecv.qty && formRecv.totalPrice && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex flex-col gap-2 mt-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-400">ระบบจะแปลงเข้าสต็อก:</span>
+                                <span className="text-emerald-400 font-bold">+{baseQtyToAdd} {selRecvIng.unit}</span>
+                            </div>
+                            <div className="flex justify-between items-end border-t border-emerald-500/20 pt-2">
+                                <span className="text-emerald-500 text-xs font-bold">พรีวิวต้นทุนเฉลี่ยใหม่:</span>
+                                <span className="text-2xl text-emerald-400 font-black">{fmtCost(previewAvgCost)} <span className="text-sm font-normal text-slate-400">/ {selRecvIng.unit}</span></span>
+                            </div>
+                        </div>
+                    )}
+                  </>
+                  )}
+
+                  <Btn onClick={saveReceiveStock} variant="emerald" disabled={!formRecv.ingId || !formRecv.qty || !formRecv.totalPrice}>บันทึกรับเข้า & คำนวณคอส</Btn>
                 </div>
               </Modal>
             </div>
           );
         }
 
+        // ─── STOCK ADJUSTMENT PAGE ──────────────────────────────────────────────────
         function StockAdjPage({ ingredients, setIngredients, adjustments, setAdjustments, onBack }) {
-          const [form, setForm] = useState({ ingId:"", type:"Damage/Waste", qty:"", reason:"" });
+          const [form, setForm] = useState({ ingId:"", type:"Damage/Waste", qty:"", mult: 1, displayUnit: "", reason:"" });
           const [toast, showToast] = useToast();
+
+          const selAdjIng = ingredients.find(i=>i.id===Number(form.ingId));
+          const unitOptions = selAdjIng ? (UNIT_FAMILIES[selAdjIng.unit] || [{name: selAdjIng.unit, mult: 1}]) : [];
+
+          useEffect(() => {
+              if (selAdjIng && unitOptions.length > 0) {
+                  setForm(f => ({...f, mult: unitOptions[0].mult, displayUnit: unitOptions[0].name}));
+              }
+          }, [form.ingId]);
+
+          const baseQtyToDeduct = Number(form.qty || 0) * Number(form.mult || 1);
 
           const submit = () => {
             if (!form.ingId||!form.qty) return;
             const ing = ingredients.find(i=>i.id===Number(form.ingId));
-            setIngredients(p=>p.map(i=>i.id===ing.id?{...i,stock:Math.max(0,i.stock-Number(form.qty))}:i));
-            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:form.type,qty:Number(form.qty),unit:ing.unit,reason:form.reason,date:new Date().toLocaleDateString('th-TH')},...p]);
-            showToast(`ปรับลด ${ing.name} แล้ว ✓`);
-            setForm({ ingId:"", type:"Damage/Waste", qty:"", reason:"" });
+            setIngredients(p=>p.map(i=>i.id===ing.id?{...i,stock:Math.max(0,i.stock-baseQtyToDeduct)}:i));
+            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:form.type,qty:baseQtyToDeduct,unit:ing.unit,reason:form.reason || `ตัดทิ้ง ${form.qty} ${form.displayUnit}`,date:new Date().toLocaleDateString('th-TH')},...p]);
+            showToast(`ตัดสต็อก ${ing.name} ทิ้งแล้ว ✓`);
+            setForm({ ingId:"", type:"Damage/Waste", qty:"", mult: 1, displayUnit: "", reason:"" });
           };
 
           return (
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 mb-2">
                 <button onClick={onBack} className="p-2 bg-slate-800 rounded-lg hover:text-white">{Icon.back}</button>
-                <h2 className="text-white font-bold text-lg">บันทึกปรับลดสต็อก (Manual)</h2>
+                <h2 className="text-white font-bold text-lg">ประวัติสต็อก & ฟอร์มตัดของทิ้ง</h2>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card title="ฟอร์มตัดสต็อก">
+                <Card title="ฟอร์มตัดสต็อกทิ้ง (Manual)">
                   <div className="flex flex-col gap-4">
-                    <Field label="ประเภท">
-                      <select className={sel} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}><option>Damage/Waste (ของเสีย)</option><option>WIP / R&D (ทดลองสูตร)</option></select>
-                    </Field>
-                    <Field label="วัตถุดิบ">
-                      <select className={sel} value={form.ingId} onChange={e=>setForm(f=>({...f,ingId:e.target.value}))}>
-                        <option value="">-- เลือกวัตถุดิบ --</option>
-                        {ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name} ({i.stock} {i.unit})</option>))}
-                      </select>
-                    </Field>
-                    <Field label="จำนวนที่ปรับลด"><input type="number" className={inp} value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></Field>
-                    <Field label="หมายเหตุ"><input className={inp} value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))}/></Field>
-                    <Btn onClick={submit} variant="danger">ยืนยันตัดสต็อก</Btn>
+                    <Field label="ประเภท"><select className={sel} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}><option>Damage/Waste (ของเสีย)</option><option>WIP / R&D (ทดลองสูตร)</option></select></Field>
+                    <Field label="เลือกวัตถุดิบ"><select className={sel} value={form.ingId} onChange={e=>setForm(f=>({...f,ingId:e.target.value}))}><option value="">-- เลือกวัตถุดิบ --</option>{ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name} ({i.stock} {i.unit})</option>))}</select></Field>
+                    {selAdjIng && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="จำนวน"><input type="number" className={inp} value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></Field>
+                            <Field label="หน่วย">
+                                <select className={sel} value={form.mult} onChange={e=>{
+                                    const selectedOption = unitOptions.find(u => u.mult === Number(e.target.value));
+                                    setForm(f=>({...f, mult: Number(e.target.value), displayUnit: selectedOption?.name || ''}))
+                                }}>
+                                    {unitOptions.map(u => <option key={u.name} value={u.mult}>{u.name}</option>)}
+                                </select>
+                            </Field>
+                        </div>
+                    )}
+                    {form.qty && selAdjIng && (<p className="text-xs text-rose-400">ระบบจะหักลบจริง: {baseQtyToDeduct} {selAdjIng.unit}</p>)}
+                    <Field label="หมายเหตุ (ถ้ามี)"><input className={inp} value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))}/></Field>
+                    <Btn onClick={submit} variant="danger" disabled={!form.ingId || !form.qty}>ยืนยันการตัดสต็อก</Btn>
                   </div>
                 </Card>
-                <Card title="ประวัติการตัด" className="!p-0">
+                <Card title="Log การปรับ/รับเข้า" className="!p-0">
                   <div className="overflow-x-auto p-4">
                     {adjustments.length===0 ? <p className="text-slate-500 text-center">ไม่มีประวัติ</p> : (
                       <table className="w-full text-left text-sm whitespace-nowrap min-w-[400px]">
-                        <thead><tr className="border-b border-slate-800 text-slate-400"><th className="pb-2">วันที่</th><th className="pb-2">รายการ</th><th className="pb-2">จำนวน</th></tr></thead>
+                        <thead><tr className="border-b border-slate-800 text-slate-400"><th className="pb-2">วันที่</th><th className="pb-2">รายการ</th><th className="pb-2 text-right">เปลี่ยนแปลง (หน่วยฐาน)</th></tr></thead>
                         <tbody>
-                          {adjustments.map(a=>(<tr key={a.id} className="border-b border-slate-800/50"><td className="py-2">{a.date}</td><td className="py-2 text-white">{a.ingName} <br/><span className="text-xs text-slate-500">{a.type}</span></td><td className="py-2 text-rose-400 font-bold">-{a.qty}</td></tr>))}
+                          {adjustments.map(a=>{
+                            const isRecv = a.type.includes("Receive");
+                            return (
+                                <tr key={a.id} className="border-b border-slate-800/50">
+                                    <td className="py-2">{a.date}</td>
+                                    <td className="py-2 text-white">{a.ingName} <br/><span className="text-xs text-slate-500">{a.type} | {a.reason}</span></td>
+                                    <td className={`py-2 font-bold text-right ${isRecv?'text-emerald-400':'text-rose-400'}`}>{isRecv?'+':'-'}{a.qty} {a.unit}</td>
+                                </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     )}
@@ -438,7 +611,7 @@
                         <p className="text-amber-400 text-2xl font-black">{fmtCost(cost)}</p>
                       </div>
                     </div>
-                    <Card title="วัตถุดิบในสูตร (BOM)" action={<Btn size="sm" onClick={()=>setModalAddIng(true)}>{Icon.plus} เพิ่มวัตถุดิบ</Btn>} className="!p-0">
+                    <Card title="วัตถุดิบในสูตร (ระบุเป็นหน่วยฐานเสมอ)" action={<Btn size="sm" onClick={()=>setModalAddIng(true)}>{Icon.plus} เพิ่มวัตถุดิบ</Btn>} className="!p-0">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm whitespace-nowrap min-w-[500px]">
                           <thead><tr className="border-b border-slate-800 bg-slate-900/50"><th className="p-3">วัตถุดิบ</th><th className="p-3">ปริมาณใช้/แก้ว</th><th className="p-3 text-right">ต้นทุนย่อย</th><th className="p-3"></th></tr></thead>
@@ -484,7 +657,7 @@
 
         // ─── ROOT APP ─────────────────────────────────────────────────────────────────
         function POSApp() {
-          const [active, setActive] = useState("pos");
+          const [active, setActive] = useState("dashboard"); // เปลี่ยนกลับมาโชว์ Dashboard เป็นหน้าแรก
           const [sidebar, setSidebar] = useState(false);
           const [ingredients, setIngredients] = useState(INIT_INGREDIENTS);
           const [recipes, setRecipes] = useState(INIT_RECIPES);
@@ -494,7 +667,7 @@
 
           const handleOrderComplete = (newOrder) => {
             setOrders(prev => [newOrder, ...prev]);
-            showToast(`รับออเดอร์หน้าร้าน และตัดสต็อกสำเร็จ!`);
+            showToast(`รับออเดอร์และตัดสต็อกสำเร็จ!`);
           };
 
           return (
@@ -519,12 +692,12 @@
                 <header className="h-16 flex-shrink-0 bg-slate-900 border-b border-slate-800 text-white font-bold flex items-center px-4 justify-between">
                   <div className="flex items-center gap-3">
                     <button className="md:hidden text-slate-400 hover:text-white" onClick={()=>setSidebar(true)}>☰</button>
-                    <span className="truncate">{active === 'stock_adj' ? 'ปรับปรุงสต็อก (Manual)' : SIDEBAR_ITEMS.find(i=>i.id===active)?.label}</span>
+                    <span className="truncate">{active === 'stock_adj' ? 'ประวัติสต็อก' : SIDEBAR_ITEMS.find(i=>i.id===active)?.label}</span>
                   </div>
-                  <span className="text-amber-400 text-xs md:text-sm bg-amber-500/10 px-2 py-1 rounded-full border border-amber-500/20">All Sprints Merged ✨</span>
+                  <span className="text-emerald-400 text-xs md:text-sm bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">{Icon.check} P&L System Added</span>
                 </header>
                 
-                <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-4">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-4 pb-20 md:pb-4">
                   {active==="pos" && <POSPage recipes={recipes} ingredients={ingredients} setIngredients={setIngredients} onOrderComplete={handleOrderComplete} />}
                   {active==="dashboard" && <Dashboard orders={orders} />}
                   {active==="stock" && <InventoryPage ingredients={ingredients} setIngredients={setIngredients} adjustments={adjustments} setAdjustments={setAdjustments} onNavAdj={()=>setActive('stock_adj')} />}
