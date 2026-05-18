@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drink POS & BOM System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-950 font-sans overscroll-none">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ดึงเครื่องมือจาก React มาใช้
+        const { useState, useMemo } = React;
+
+        // ─── ICONS ────────────────────────────────────────────────────────────────────
+        const Icon = {
+          dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+          pos: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 8h2M7 12h2M11 8h6M11 12h3"/></svg>,
+          stock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8L6 7h12l-2-4zM12 12v3M8 12v3M16 12v3"/></svg>,
+          recipe: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>,
+          plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M12 5v14M5 12h14"/></svg>,
+          edit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+          trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>,
+          x: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M18 6L6 18M6 6l12 12"/></svg>,
+          warn: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+          check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>,
+          back: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>,
+        };
+
+        const SIDEBAR_ITEMS = [
+          { id: "dashboard", label: "Dashboard",   icon: Icon.dashboard },
+          { id: "pos",       label: "POS",          icon: Icon.pos },
+          { id: "stock",     label: "จัดการสต็อก", icon: Icon.stock },
+          { id: "recipe",    label: "สูตรอาหาร",   icon: Icon.recipe },
+        ];
+
+        // ─── MOCK DATA ────────────────────────────────────────────────────────────────
+        const INIT_INGREDIENTS = [
+          { id:1,  name:"ชาไทย",        type:"วัตถุดิบ",    unit:"กรัม",  stock:2000, costPerUnit:0.18, minStock:500  },
+          { id:2,  name:"นมข้นหวาน",    type:"วัตถุดิบ",    unit:"มล.",   stock:3500, costPerUnit:0.05, minStock:500  },
+          { id:3,  name:"นมสด",         type:"วัตถุดิบ",    unit:"มล.",   stock:8000, costPerUnit:0.04, minStock:1000 },
+          { id:4,  name:"กาแฟสด",       type:"วัตถุดิบ",    unit:"กรัม",  stock:800,  costPerUnit:1.20, minStock:300  },
+          { id:5,  name:"ผงมัทฉะ",      type:"วัตถุดิบ",    unit:"กรัม",  stock:400,  costPerUnit:2.50, minStock:100  },
+          { id:6,  name:"ผงโกโก้",      type:"วัตถุดิบ",    unit:"กรัม",  stock:600,  costPerUnit:0.80, minStock:150  },
+          { id:7,  name:"น้ำเชื่อม",    type:"วัตถุดิบ",    unit:"มล.",   stock:5000, costPerUnit:0.02, minStock:500  },
+          { id:8,  name:"แก้วพลาสติก",  type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:450,  costPerUnit:2.00, minStock:100  },
+          { id:9,  name:"หลอดดูด",      type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:490,  costPerUnit:0.30, minStock:100  },
+          { id:10, name:"ถุงซิปล็อก",   type:"แพคเกจจิ้ง", unit:"ชิ้น",  stock:180,  costPerUnit:1.50, minStock:200  },
+        ];
+
+        const INIT_RECIPES = [
+          { id:1, name:"ชาไทยเย็น",     lines:[{ingId:1,qty:15},{ingId:2,qty:30},{ingId:3,qty:60},{ingId:7,qty:20},{ingId:8,qty:1},{ingId:9,qty:1}] },
+          { id:2, name:"มัทฉะลาเต้เย็น",lines:[{ingId:5,qty:8},{ingId:3,qty:150},{ingId:7,qty:15},{ingId:8,qty:1},{ingId:9,qty:1}] },
+          { id:3, name:"กาแฟเย็น",      lines:[{ingId:4,qty:18},{ingId:2,qty:25},{ingId:3,qty:80},{ingId:8,qty:1},{ingId:9,qty:1}] },
+        ];
+
+        const INIT_ADJUSTMENTS = [
+          { id:1, ingId:6, ingName:"ผงโกโก้",  type:"Damage/Waste", qty:50, unit:"กรัม", reason:"ผงหมดอายุ",               date:"2025-07-12" },
+          { id:2, ingId:5, ingName:"ผงมัทฉะ", type:"WIP / R&D",    qty:30, unit:"กรัม", reason:"ทดสอบสูตรใหม่ Matcha Espresso", date:"2025-07-11" },
+        ];
+
+        // ─── HELPERS ─────────────────────────────────────────────────────────────────
+        const fmtCost = (n) => `฿${Number(n).toFixed(2)}`;
+        const calcRecipeCost = (lines, ings) =>
+          lines.reduce((s, l) => { const i = ings.find(x => x.id === l.ingId); return s + (i ? i.costPerUnit * Number(l.qty) : 0); }, 0);
+
+        function useToast() {
+          const [msg, setMsg] = useState("");
+          const show = (m) => { setMsg(m); setTimeout(() => setMsg(""), 2600); };
+          return [msg, show];
+        }
+
+        // ─── SHARED UI ───────────────────────────────────────────────────────────────
+        function Badge({ children, color="slate" }) {
+          const map = { slate:"bg-slate-700 text-slate-300", amber:"bg-amber-500/20 text-amber-400", rose:"bg-rose-500/20 text-rose-400", emerald:"bg-emerald-500/20 text-emerald-400", violet:"bg-violet-500/20 text-violet-400", sky:"bg-sky-500/20 text-sky-400" };
+          return <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${map[color]}`}>{children}</span>;
+        }
+
+        function Card({ title, action, children, className="" }) {
+          return (
+            <div className={`bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden ${className}`}>
+              {(title||action) && (
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 gap-2 flex-shrink-0">
+                  {title && <p className="text-white font-bold text-sm">{title}</p>}
+                  {action}
+                </div>
+              )}
+              {children}
+            </div>
+          );
+        }
+
+        function Btn({ children, onClick, variant="primary", size="md", className="", disabled=false }) {
+          const base = "inline-flex items-center gap-2 font-semibold rounded-xl touch-manipulation transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none";
+          const sz = { sm:"px-3 py-1.5 text-xs min-h-[32px]", md:"px-4 py-2.5 text-sm min-h-[42px]", lg:"px-5 py-3 text-sm min-h-[52px]" };
+          const va = { primary:"bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 shadow-lg shadow-amber-900/30", danger:"bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30", ghost:"bg-slate-800 hover:bg-slate-700 text-slate-300", emerald:"bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30" };
+          return <button disabled={disabled} onClick={onClick} className={`${base} ${sz[size]} ${va[variant]} ${className}`}>{children}</button>;
+        }
+
+        function Field({ label, required, children }) {
+          return (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-slate-400 text-xs font-semibold">{label}{required && <span className="text-rose-400 ml-0.5">*</span>}</label>
+              {children}
+            </div>
+          );
+        }
+
+        const inp = "bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40 w-full placeholder-slate-500 transition-colors";
+        const sel = `${inp} appearance-none cursor-pointer`;
+
+        function Modal({ open, onClose, title, children, wide=false }) {
+          if (!open) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+              <div className={`bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh] ${wide?"max-w-2xl":"max-w-md"}`} onClick={e=>e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 flex-shrink-0">
+                  <p className="text-white font-bold text-base">{title}</p>
+                  <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors p-1 touch-manipulation">{Icon.x}</button>
+                </div>
+                <div className="overflow-y-auto flex-1 px-5 py-4">{children}</div>
+              </div>
+            </div>
+          );
+        }
+
+        function Toast({ msg }) {
+          return msg ? (
+            <div className="fixed bottom-6 right-6 z-[100] bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 text-sm font-semibold">
+              {Icon.check} {msg}
+            </div>
+          ) : null;
+        }
+
+        // ─── DASHBOARD ────────────────────────────────────────────────────────────────
+        const D_STATS = [
+          { label:"ยอดขายวันนี้",   value:"฿12,840", change:"+8.2%",        up:true,  color:"from-emerald-500 to-teal-600",  icon:"💰" },
+          { label:"ออเดอร์ทั้งหมด", value:"247",     change:"+12 จากเมื่อวาน", up:true,  color:"from-sky-500 to-blue-600",     icon:"🧾" },
+          { label:"เมนูขายดี",      value:"ชาไทย",  change:"84 แก้ว",       up:true,  color:"from-amber-500 to-orange-500", icon:"⭐" },
+          { label:"สต็อกใกล้หมด",   value:"3 รายการ",change:"ต้องเติม!",    up:false, color:"from-rose-500 to-pink-600",    icon:"⚠️" },
+        ];
+        const D_ORDERS = [
+          { id:"#1042", items:"ชาไทย x2, กาแฟเย็น x1",  time:"10:32", total:"฿120" },
+          { id:"#1041", items:"มัทฉะลาเต้ x1",           time:"10:28", total:"฿75"  },
+          { id:"#1040", items:"โอเลี้ยง x3, ชาเย็น x2", time:"10:15", total:"฿225" },
+          { id:"#1039", items:"อเมริกาโน่ x1, ลาเต้ x1",time:"10:05", total:"฿130" },
+        ];
+        const D_TOP = [
+          {name:"ชาไทย",sold:84,pct:92},{name:"กาแฟเย็น",sold:71,pct:78},
+          {name:"มัทฉะลาเต้",sold:58,pct:64},{name:"โอเลี้ยง",sold:47,pct:52},{name:"อเมริกาโน่",sold:35,pct:38},
+        ];
+        const D_HOURLY = [{h:"08",v:12},{h:"09",v:28},{h:"10",v:45},{h:"11",v:38},{h:"12",v:62},{h:"13",v:55},{h:"14",v:41},{h:"15",v:30}];
+        const MAXV = Math.max(...D_HOURLY.map(d=>d.v));
+
+        function Dashboard() {
+          return (
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {D_STATS.map(s=>(
+                  <div key={s.label} className={`relative rounded-2xl p-4 bg-gradient-to-br ${s.color} shadow-lg overflow-hidden`}>
+                    <div className="absolute -right-3 -top-3 text-4xl opacity-20 select-none">{s.icon}</div>
+                    <p className="text-white/70 text-xs font-medium whitespace-normal break-words leading-snug">{s.label}</p>
+                    <p className="text-white text-2xl font-black mt-1 break-words">{s.value}</p>
+                    <p className={`text-xs mt-2 font-medium whitespace-normal break-words ${s.up?"text-white/80":"text-white"}`}>{s.up?"↑":"⚠"} {s.change}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                <div className="lg:col-span-3 bg-slate-900 rounded-2xl p-4 border border-slate-800">
+                  <p className="text-white font-bold text-sm mb-1">ยอดขายรายชั่วโมง</p>
+                  <p className="text-slate-400 text-xs mb-4">วันนี้ (แก้ว)</p>
+                  <div className="flex items-end gap-2 h-32">
+                    {D_HOURLY.map(d=>(
+                      <div key={d.h} className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                        <span className="text-slate-400 text-[10px]">{d.v}</span>
+                        <div className="w-full rounded-t-md bg-gradient-to-t from-amber-500 to-orange-400" style={{height:`${(d.v/MAXV)*96}px`}}/>
+                        <span className="text-slate-500 text-[10px]">{d.h}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="lg:col-span-2 bg-slate-900 rounded-2xl p-4 border border-slate-800">
+                  <p className="text-white font-bold text-sm mb-1">เมนูขายดี</p>
+                  <p className="text-slate-400 text-xs mb-4">วันนี้</p>
+                  <div className="flex flex-col gap-3">
+                    {D_TOP.map((m,i)=>(
+                      <div key={m.name}>
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-slate-500 text-xs w-4 flex-shrink-0">#{i+1}</span>
+                            <span className="text-white text-sm font-medium truncate">{m.name}</span>
+                          </div>
+                          <span className="text-slate-400 text-xs flex-shrink-0 ml-2">{m.sold} แก้ว</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style={{width:`${m.pct}%`}}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // ─── INVENTORY PAGE ───────────────────────────────────────────────────────────
+        const EMPTY_ING = { name:"", type:"วัตถุดิบ", unit:"กรัม", stock:"", costPerUnit:"", minStock:"" };
+
+        function InventoryPage({ ingredients, setIngredients }) {
+          const [modal,   setModal]   = useState(false);
+          const [editing, setEditing] = useState(null);
+          const [form,    setForm]    = useState(EMPTY_ING);
+          const [search,  setSearch]  = useState("");
+          const [fType,   setFType]   = useState("ทั้งหมด");
+          const [toast,   showToast]  = useToast();
+
+          const openAdd  = () => { setEditing(null);  setForm(EMPTY_ING);                          setModal(true); };
+          const openEdit = (i) => { setEditing(i);    setForm({...i, stock:String(i.stock), costPerUnit:String(i.costPerUnit), minStock:String(i.minStock)}); setModal(true); };
+
+          const save = () => {
+            if (!form.name.trim()||!form.stock||!form.costPerUnit) return;
+            const patch = { ...form, stock:Number(form.stock), costPerUnit:Number(form.costPerUnit), minStock:Number(form.minStock||0) };
+            if (editing) {
+              setIngredients(p=>p.map(i=>i.id===editing.id?{...i,...patch}:i));
+              showToast("บันทึกการแก้ไขแล้ว ✓");
+            } else {
+              const id = Math.max(0,...ingredients.map(i=>i.id))+1;
+              setIngredients(p=>[...p,{id,...patch}]);
+              showToast("เพิ่มวัตถุดิบใหม่แล้ว ✓");
+            }
+            setModal(false);
+          };
+
+          const del = (id) => { setIngredients(p=>p.filter(i=>i.id!==id)); showToast("ลบรายการแล้ว"); };
+
+          const filtered = ingredients.filter(i=>i.name.toLowerCase().includes(search.toLowerCase())&&(fType==="ทั้งหมด"||i.type===fType));
+          const lowStock = ingredients.filter(i=>i.stock<=i.minStock);
+
+          return (
+            <div className="flex flex-col gap-4">
+              <Toast msg={toast}/>
+
+              {lowStock.length>0&&(
+                <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl px-4 py-3">
+                  <span className="text-rose-400 flex-shrink-0 mt-0.5">{Icon.warn}</span>
+                  <div className="min-w-0">
+                    <p className="text-rose-400 text-sm font-bold">สต็อกใกล้หมด {lowStock.length} รายการ</p>
+                    <p className="text-rose-300/70 text-xs whitespace-normal break-words mt-0.5">{lowStock.map(i=>i.name).join(", ")}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <input className={`${inp} flex-1 min-w-[160px]`} placeholder="🔍 ค้นหาวัตถุดิบ..." value={search} onChange={e=>setSearch(e.target.value)}/>
+                <select className={`${sel} w-40`} value={fType} onChange={e=>setFType(e.target.value)}>
+                  {["ทั้งหมด","วัตถุดิบ","แพคเกจจิ้ง"].map(t=><option key={t}>{t}</option>)}
+                </select>
+                <Btn onClick={openAdd}>{Icon.plus} เพิ่มรายการ</Btn>
+              </div>
+
+              <Card>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px]">
+                    <thead><tr className="border-b border-slate-800">
+                      {["ชื่อวัตถุดิบ / แพคเกจจิ้ง","ประเภท","หน่วย","สต็อก","ต้นทุน/หน่วย","สต็อกขั้นต่ำ","สถานะ","จัดการ"].map(h=>(
+                        <th key={h} className="text-left text-slate-400 text-xs font-semibold px-4 py-3 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {filtered.length===0&&<tr><td colSpan={8} className="text-center text-slate-500 py-10 text-sm">ไม่พบรายการ</td></tr>}
+                      {filtered.map(ing=>{
+                        const low=ing.stock<=ing.minStock;
+                        return (
+                          <tr key={ing.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                            <td className="px-4 py-3"><p className="text-white text-sm font-semibold whitespace-normal break-words max-w-[180px]">{ing.name}</p></td>
+                            <td className="px-4 py-3 whitespace-nowrap"><Badge color={ing.type==="วัตถุดิบ"?"amber":"violet"}>{ing.type}</Badge></td>
+                            <td className="px-4 py-3 text-slate-300 text-sm whitespace-nowrap">{ing.unit}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`text-sm font-bold ${low?"text-rose-400":"text-white"}`}>{ing.stock.toLocaleString()}</span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-300 text-sm whitespace-nowrap">{fmtCost(ing.costPerUnit)}</td>
+                            <td className="px-4 py-3 text-slate-400 text-sm whitespace-nowrap">{ing.minStock.toLocaleString()}</td>
+                            <td className="px-4 py-3 whitespace-nowrap"><Badge color={low?"rose":"emerald"}>{low?"ใกล้หมด":"ปกติ"}</Badge></td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <Btn size="sm" variant="ghost" onClick={()=>openEdit(ing)}>{Icon.edit} แก้ไข</Btn>
+                                <Btn size="sm" variant="danger" onClick={()=>del(ing.id)}>{Icon.trash}</Btn>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <Modal open={modal} onClose={()=>setModal(false)} title={editing?"แก้ไขวัตถุดิบ":"เพิ่มวัตถุดิบ / แพคเกจจิ้ง"}>
+                <div className="flex flex-col gap-4">
+                  <Field label="ชื่อ" required>
+                    <input className={inp} placeholder="เช่น ชาไทย, แก้วพลาสติก" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="ประเภท" required>
+                      <select className={sel} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
+                        <option>วัตถุดิบ</option><option>แพคเกจจิ้ง</option>
+                      </select>
+                    </Field>
+                    <Field label="หน่วยนับ" required>
+                      <select className={sel} value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}>
+                        {["กรัม","มล.","ชิ้น","แก้ว","ถุง","กิโลกรัม","ลิตร"].map(u=><option key={u}>{u}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="สต็อกเริ่มต้น" required>
+                      <input type="number" min="0" className={inp} placeholder="0" value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))}/>
+                    </Field>
+                    <Field label="สต็อกขั้นต่ำ (แจ้งเตือน)">
+                      <input type="number" min="0" className={inp} placeholder="0" value={form.minStock} onChange={e=>setForm(f=>({...f,minStock:e.target.value}))}/>
+                    </Field>
+                  </div>
+                  <Field label="ต้นทุนเฉลี่ยต่อหน่วย (฿)" required>
+                    <input type="number" min="0" step="0.01" className={inp} placeholder="0.00" value={form.costPerUnit} onChange={e=>setForm(f=>({...f,costPerUnit:e.target.value}))}/>
+                  </Field>
+                  <div className="flex gap-3 justify-end pt-2">
+                    <Btn variant="ghost" onClick={()=>setModal(false)}>ยกเลิก</Btn>
+                    <Btn onClick={save} disabled={!form.name.trim()||!form.stock||!form.costPerUnit}>{editing?"บันทึกการแก้ไข":"เพิ่มรายการ"}</Btn>
+                  </div>
+                </div>
+              </Modal>
+            </div>
+          );
+        }
+
+        // ─── RECIPE PAGE ──────────────────────────────────────────────────────────────
+        function RecipePage({ ingredients, recipes, setRecipes }) {
+          const [selected,    setSelected]    = useState(recipes[0]?.id||null);
+          const [modalNew,    setModalNew]    = useState(false);
+          const [modalAddIng, setModalAddIng] = useState(false);
+          const [newName,     setNewName]     = useState("");
+          const [ingSearch,   setIngSearch]   = useState("");
+          const [toast,       showToast]      = useToast();
+
+          const recipe = recipes.find(r=>r.id===selected)||null;
+          const cost   = useMemo(()=>recipe?calcRecipeCost(recipe.lines,ingredients):0,[recipe,ingredients]);
+
+          const createRecipe = () => {
+            if (!newName.trim()) return;
+            const id = Math.max(0,...recipes.map(r=>r.id))+1;
+            setRecipes(p=>[...p,{id,name:newName.trim(),lines:[]}]);
+            setSelected(id); setNewName(""); setModalNew(false);
+            showToast("สร้างเมนูใหม่แล้ว ✓");
+          };
+
+          const delRecipe = (id) => {
+            setRecipes(p=>p.filter(r=>r.id!==id));
+            if (selected===id) setSelected(recipes.find(r=>r.id!==id)?.id||null);
+            showToast("ลบเมนูแล้ว");
+          };
+
+          const addIngToRecipe = (ingId) => {
+            if (!recipe||recipe.lines.find(l=>l.ingId===ingId)) { setModalAddIng(false); return; }
+            setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:[...r.lines,{ingId,qty:1}]}:r));
+            setModalAddIng(false);
+          };
+
+          const changeQty = (ingId, val) => {
+            setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:r.lines.map(l=>l.ingId===ingId?{...l,qty:val}:l)}:r));
+          };
+
+          const removeLine = (ingId) => {
+            setRecipes(p=>p.map(r=>r.id===recipe.id?{...r,lines:r.lines.filter(l=>l.ingId!==ingId)}:r));
+          };
+
+          const availableIngs = ingredients.filter(i=>
+            !recipe?.lines.find(l=>l.ingId===i.id) &&
+            i.name.toLowerCase().includes(ingSearch.toLowerCase())
+          );
+
+          return (
+            <div className="flex flex-col gap-4">
+              <Toast msg={toast}/>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* LEFT: List */}
+                <div className="lg:col-span-1">
+                  <Card title="เมนูทั้งหมด" action={<Btn size="sm" onClick={()=>{setNewName("");setModalNew(true);}}>{Icon.plus} เมนูใหม่</Btn>} className="h-full">
+                    <div className="flex flex-col divide-y divide-slate-800 max-h-[420px] overflow-y-auto">
+                      {recipes.map(r=>(
+                        <div key={r.id}
+                          className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors touch-manipulation gap-2 ${selected===r.id?"bg-amber-500/10 border-l-2 border-amber-500":"hover:bg-slate-800/50"}`}
+                          onClick={()=>setSelected(r.id)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-white text-sm font-semibold whitespace-normal break-words leading-snug">{r.name}</p>
+                            <p className="text-slate-400 text-xs mt-0.5">{r.lines.length} วัตถุดิบ · {fmtCost(calcRecipeCost(r.lines,ingredients))}/แก้ว</p>
+                          </div>
+                          <button className="text-slate-600 hover:text-rose-400 flex-shrink-0 p-1 transition-colors" onClick={e=>{e.stopPropagation();delRecipe(r.id);}}>{Icon.trash}</button>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* RIGHT: Editor */}
+                <div className="lg:col-span-2 flex flex-col gap-4">
+                  {!recipe?(
+                    <div className="flex flex-col items-center justify-center bg-slate-900 border border-slate-800 rounded-2xl h-64 gap-3 text-center px-4">
+                      <p className="text-white font-bold">เลือกเมนูจากรายการซ้าย</p>
+                    </div>
+                  ):(
+                    <>
+                      <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/30 rounded-2xl p-4 flex items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-amber-400 text-xs font-semibold uppercase tracking-wide">เมนูที่เลือก</p>
+                          <p className="text-white text-xl font-black whitespace-normal break-words leading-snug">{recipe.name}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-slate-400 text-xs">🧮 Food Cost / แก้ว</p>
+                          <p className="text-amber-400 text-3xl font-black tabular-nums">{fmtCost(cost)}</p>
+                        </div>
+                      </div>
+
+                      <Card title="วัตถุดิบในสูตร (BOM)" action={<Btn size="sm" onClick={()=>{setIngSearch("");setModalAddIng(true);}}>{Icon.plus} เพิ่มวัตถุดิบ</Btn>}>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[500px]">
+                            <thead><tr className="border-b border-slate-800">
+                              {["วัตถุดิบ","ประเภท","ปริมาณ/แก้ว","หน่วย","ต้นทุน",""].map(h=>(
+                                <th key={h} className="text-left text-slate-400 text-xs font-semibold px-4 py-2.5 whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {recipe.lines.map(line=>{
+                                const ing=ingredients.find(i=>i.id===line.ingId);
+                                if(!ing) return null;
+                                return (
+                                  <tr key={line.ingId} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                                    <td className="px-4 py-3"><p className="text-white text-sm font-semibold whitespace-normal break-words max-w-[140px]">{ing.name}</p></td>
+                                    <td className="px-4 py-3 whitespace-nowrap"><Badge color={ing.type==="วัตถุดิบ"?"amber":"violet"}>{ing.type}</Badge></td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <input type="number" min="0.1" step="0.1"
+                                        className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2 py-1.5 text-sm w-20 focus:outline-none focus:border-amber-500 tabular-nums"
+                                        value={line.qty}
+                                        onChange={e=>changeQty(line.ingId,e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-300 text-sm whitespace-nowrap">{ing.unit}</td>
+                                    <td className="px-4 py-3 text-emerald-400 text-sm font-bold whitespace-nowrap tabular-nums">{fmtCost(ing.costPerUnit*Number(line.qty))}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <button className="text-slate-600 hover:text-rose-400 transition-colors p-1 touch-manipulation" onClick={()=>removeLine(line.ingId)}>{Icon.trash}</button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Modals */}
+              <Modal open={modalNew} onClose={()=>setModalNew(false)} title="สร้างเมนูใหม่">
+                <div className="flex flex-col gap-4">
+                  <Field label="ชื่อเมนู" required>
+                    <input className={inp} placeholder="เช่น Salted Jasmine Tea Latte" value={newName} onChange={e=>setNewName(e.target.value)} />
+                  </Field>
+                  <Btn onClick={createRecipe} disabled={!newName.trim()}>สร้างเมนู</Btn>
+                </div>
+              </Modal>
+
+              <Modal open={modalAddIng} onClose={()=>setModalAddIng(false)} title="เลือกวัตถุดิบ">
+                <div className="flex flex-col gap-3">
+                  <input className={inp} placeholder="🔍 ค้นหา..." value={ingSearch} onChange={e=>setIngSearch(e.target.value)}/>
+                  <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+                    {availableIngs.map(ing=>(
+                      <button key={ing.id} onClick={()=>addIngToRecipe(ing.id)} className="flex items-center justify-between w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-left transition-colors">
+                        <p className="text-white text-sm font-semibold">{ing.name}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Modal>
+            </div>
+          );
+        }
+
+        // ─── STOCK ADJUSTMENT PAGE ────────────────────────────────────────────────────
+        function StockAdjPage({ ingredients, setIngredients, adjustments, setAdjustments }) {
+          const [form, setForm] = useState({ ingId:"", type:"Damage/Waste", qty:"", reason:"" });
+          const [toast, showToast] = useToast();
+
+          const submit = () => {
+            if (!form.ingId||!form.qty) return;
+            const ing = ingredients.find(i=>i.id===Number(form.ingId));
+            setIngredients(p=>p.map(i=>i.id===ing.id?{...i,stock:Math.max(0,i.stock-Number(form.qty))}:i));
+            setAdjustments(p=>[{id:Date.now(),ingId:ing.id,ingName:ing.name,type:form.type,qty:Number(form.qty),unit:ing.unit,reason:form.reason,date:new Date().toISOString().slice(0,10)},...p]);
+            showToast(`ปรับสต็อกเรียบร้อย ✓`);
+            setForm({ ingId:"", type:"Damage/Waste", qty:"", reason:"" });
+          };
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card title="บันทึกการปรับสต็อก">
+                <div className="flex flex-col gap-4">
+                  <Field label="วัตถุดิบ" required>
+                    <select className={sel} value={form.ingId} onChange={e=>setForm(f=>({...f,ingId:e.target.value}))}>
+                      <option value="">-- เลือกวัตถุดิบ --</option>
+                      {ingredients.map(i=>(<option key={i.id} value={i.id}>{i.name}</option>))}
+                    </select>
+                  </Field>
+                  <Field label="จำนวนที่ปรับลด" required>
+                    <input type="number" className={inp} value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/>
+                  </Field>
+                  <Btn onClick={submit}>บันทึก</Btn>
+                </div>
+              </Card>
+              <Card title="ประวัติการปรับสต็อก">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead><tr><th className="p-3">วันที่</th><th className="p-3">วัตถุดิบ</th><th className="p-3">จำนวน</th></tr></thead>
+                    <tbody>
+                      {adjustments.map(a=>(<tr key={a.id}><td className="p-3">{a.date}</td><td className="p-3">{a.ingName}</td><td className="p-3 text-rose-400">-{a.qty}</td></tr>))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          );
+        }
+
+        // ─── ROOT APP ─────────────────────────────────────────────────────────────────
+        function POSApp() {
+          const [active, setActive] = useState("dashboard");
+          const [sidebar, setSidebar] = useState(true);
+          const [ingredients, setIngredients] = useState(INIT_INGREDIENTS);
+          const [recipes, setRecipes] = useState(INIT_RECIPES);
+          const [adjustments, setAdjustments] = useState(INIT_ADJUSTMENTS);
+
+          return (
+            <div className="flex h-screen w-screen overflow-hidden bg-slate-950 font-sans">
+              <aside className={`flex flex-col h-full bg-slate-900 border-r border-slate-800 z-20 ${sidebar?"w-52":"w-20"}`}>
+                <div className="p-4 border-b border-slate-800 text-white font-bold">POS System</div>
+                <nav className="flex-1 p-3 space-y-1">
+                  {SIDEBAR_ITEMS.map(item=>(
+                    <button key={item.id} onClick={()=>setActive(item.id)} className={`w-full flex items-center gap-3 p-3 rounded-xl ${active===item.id?"bg-amber-500 text-black":"text-slate-400"}`}>
+                      {item.icon} {sidebar && item.label}
+                    </button>
+                  ))}
+                </nav>
+              </aside>
+
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <header className="p-4 bg-slate-900 border-b border-slate-800 text-white font-bold">{SIDEBAR_ITEMS.find(i=>i.id===active)?.label||"System"}</header>
+                <main className="flex-1 overflow-y-auto p-4 md:p-5">
+                  {active==="dashboard" && <Dashboard />}
+                  {active==="pos" && <div className="text-white text-center mt-10">POS วางแผนพัฒนาใน Sprint 3</div>}
+                  {active==="stock" && <InventoryPage ingredients={ingredients} setIngredients={setIngredients}/>}
+                  {active==="recipe" && <RecipePage ingredients={ingredients} recipes={recipes} setRecipes={setRecipes}/>}
+                </main>
+              </div>
+            </div>
+          );
+        }
+
+        // สั่งให้ React ทำงานบนหน้าจอ
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<POSApp />);
+    </script>
+</body>
+</html>
