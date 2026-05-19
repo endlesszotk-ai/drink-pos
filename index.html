@@ -49,7 +49,7 @@
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     table{width:100%;border-collapse:collapse;font-size:.875rem}
     th,td{padding:10px 12px;text-align:left;border-bottom:1px solid rgba(30,41,59,.8)}
-    th{color:#94a3b8;background:rgba(15,23,42,.5)}
+    th{color:#94a3b8;background:rgba(15,23,42,.5);white-space:nowrap}
     ::-webkit-scrollbar{width:4px;height:4px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
@@ -144,7 +144,7 @@
     <header style="height:64px;flex-shrink:0;background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;padding:0 12px;justify-content:space-between;gap:8px">
       <span id="header-title" style="font-weight:700;color:#fff;font-size:1rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        <span id="shift-indicator" style="font-size:.7rem;padding:4px 8px;border-radius:999px;display:none"></span>
+        <span id="shift-indicator" style="font-size:.7rem;padding:4px 8px;border-radius:999px;display:none;white-space:nowrap"></span>
         <button id="staff-badge" onclick="doLogout()" title="ออกจากระบบ" style="background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:#a78bfa;font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:999px;cursor:pointer;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></button>
         <span style="font-size:.65rem;color:#10b981;background:rgba(16,185,129,.1);padding:4px 8px;border-radius:999px;border:1px solid rgba(16,185,129,.2);flex-shrink:0">✓ Cloud</span>
       </div>
@@ -261,17 +261,15 @@ async function fetchCloudData() {
       _sb.from('platforms').select('*').order('id'),
       _sb.from('platform_prices').select('*'),
       _sb.from('shifts').select('*').order('opened_at',{ascending:false}).limit(50),
-      _sb.from('wip_formulas').select('*') // ── SPRINT 8: WIP Formulas ──
+      _sb.from('wip_formulas').select('*')
     ];
     if (isAdmin) baseQueries.push(_sb.from('staff').select('*').order('id'));
 
     var results = await Promise.all(baseQueries);
     var [r1,r2,r3,r4,r5,r6,r7,r8,r9] = results;
 
-    // ── Update Ingredients to include WIP fields ──
     state.ingredients = (r1.data||[]).map(i => ({id:i.id,name:i.name,type:i.type,unit:i.unit,stock:Number(i.stock),costPerUnit:Number(i.cost_per_unit),minStock:Number(i.min_stock),yieldPerBatch:Number(i.yield_per_batch||1)}));
     
-    // ── Extract WIP Formulas ──
     state.wipFormulas = (r9.data||[]).map(x => ({id:x.id, wipIngId:x.wip_ing_id, rawIngId:x.raw_ing_id, qty:Number(x.qty)}));
 
     state.recipes = (r2.data||[]).map(r => ({
@@ -889,7 +887,7 @@ function renderInventory(){
   var left=el('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}});
   left.appendChild(el('button',{cls:'btn btn-ghost',txt:'+ เพิ่มรายการใหม่',onClick:openModalAddIng}));
   left.appendChild(el('button',{cls:'btn btn-emerald',txt:'📥 รับเข้า (ซื้อ)',onClick:openModalReceive}));
-  left.appendChild(el('button',{cls:'btn btn-violet',txt:'🍳 ผลิตเบส (WIP)',onClick:openModalProduceWIP})); // ── NEW: Produce WIP ──
+  left.appendChild(el('button',{cls:'btn btn-violet',txt:'🍳 ผลิตเบส (WIP)',onClick:openModalProduceWIP})); 
   bar.appendChild(left);
   bar.appendChild(el('button',{cls:'btn btn-ghost',txt:'⚖️ ตัดทิ้ง/R&D',onClick:()=>navigate('stock_adj')}));
   wrap.appendChild(bar);
@@ -901,16 +899,16 @@ function renderInventory(){
     var td4=el('td',{},el('span',{txt:ing.stock+' '+ing.unit,style:{fontWeight:700,color:low?'#f87171':'#10b981'}}));
     if(low)td4.appendChild(el('span',{txt:'(ใกล้หมด)',style:{color:'#f87171',fontSize:'.7rem',marginLeft:'6px'}}));
     
-    var actDiv = el('div',{style:{display:'flex',gap:'4px',justifyContent:'center'}});
+    var actDiv = el('div',{style:{display:'flex',gap:'4px',justifyContent:'center',flexWrap:'nowrap'}});
     if(isWIP) {
       actDiv.appendChild(el('button',{cls:'btn btn-ghost btn-sm',txt:'สูตรเบส',onClick:()=>openModalWIPFormula(ing)}));
     }
     actDiv.appendChild(el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569',padding:'4px 8px',fontSize:'1rem'},onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},onClick:async function(){if(confirm('ลบรายการนี้?')){await _sb.from('ingredients').delete().eq('id',ing.id);await refreshView()}}}));
 
     var badgeCls = isWIP ? 'badge-violet' : (ing.type==='วัตถุดิบ'?'badge-amber':'badge-blue');
-    tbody.appendChild(el('tr',{},el('td',{txt:ing.name,style:{color:'#fff',fontWeight:600}}),el('td',{},el('span',{cls:'badge '+badgeCls,txt:ing.type})),td4,el('td',{txt:fmtCost(ing.costPerUnit),style:{color:'#f59e0b',fontWeight:700}}),el('td',{},actDiv)));
+    tbody.appendChild(el('tr',{},el('td',{txt:ing.name,style:{color:'#fff',fontWeight:600}}),el('td',{},el('span',{cls:'badge '+badgeCls,txt:ing.type})),td4,el('td',{txt:fmtCost(ing.costPerUnit),style:{color:'#f59e0b',fontWeight:700}}),el('td',{style:{textAlign:'center',whiteSpace:'nowrap'}},actDiv)));
   });
-  sw.appendChild(el('table',{style:{minWidth:'600px'}},el('thead',{},el('tr',{},el('th',{txt:'ชื่อรายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'สต็อกคงเหลือ'}),el('th',{txt:'ต้นทุนเฉลี่ย/หน่วย'}),el('th',{txt:'จัดการ',style:{textAlign:'center'}}))),tbody));
+  sw.appendChild(el('table',{style:{minWidth:'600px'}},el('thead',{},el('tr',{},el('th',{txt:'ชื่อรายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'สต็อกคงเหลือ'}),el('th',{txt:'ต้นทุนเฉลี่ย/หน่วย'}),el('th',{txt:'จัดการ',style:{textAlign:'center',whiteSpace:'nowrap'}}))),tbody));
   var card=el('div',{cls:'card'});card.appendChild(sw);wrap.appendChild(card);return wrap;
 }
 
@@ -926,12 +924,16 @@ function openModalAddIng(){
   var yContainer=el('div',{style:{display:'none'}});
   var yI=mkInp({type:'number',value:'1'});yI.addEventListener('input',e=>form.yieldPerBatch=e.target.value);
   function renderYieldField() { yContainer.style.display = form.type === 'WIP/เบส' ? 'block' : 'none'; }
-  yContainer.appendChild(mkField('ปริมาณที่จะได้ต่อ 1 การต้ม (Expected Yield)', yI));
+  yContainer.appendChild(mkField('ปริมาณที่จะได้ต่อ 1 การผลิต (Expected Yield)', yI));
 
   var saveBtn=el('button',{cls:'btn btn-primary',txt:'บันทึก',style:{width:'100%'},onClick:async function(){
     if(!form.name)return showToast('กรอกข้อมูลให้ครบ');this.disabled=true;
-    await _sb.from('ingredients').insert([{name:form.name,type:form.type,unit:form.unit,stock:Number(form.stock),cost_per_unit:Number(form.costPerUnit),min_stock:Number(form.minStock||0),yield_per_batch:Number(form.yieldPerBatch||1)}]);
+    var res = await _sb.from('ingredients').insert([{name:form.name,type:form.type,unit:form.unit,stock:Number(form.stock),cost_per_unit:Number(form.costPerUnit),min_stock:Number(form.minStock||0),yield_per_batch:Number(form.yieldPerBatch||1)}]).select();
     closeModal();showToast('สร้างรายการสำเร็จ');await refreshView();
+    // ── NEW: Auto-open formula modal if it's a WIP base ──
+    if(form.type === 'WIP/เบส' && res.data && res.data.length > 0) {
+      openModalWIPFormula(res.data[0]);
+    }
   }});
   openModal('เพิ่มสต็อกใหม่',el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}},mkField('ชื่อรายการ',nI),el('div',{cls:'grid2'},mkField('ประเภท',tE),mkField('หน่วยฐาน',uE)), yContainer, el('div',{cls:'grid2'},mkField('ยอดยกมา',sI),mkField('แจ้งเตือนเมื่อต่ำกว่า',mI)),mkField('ต้นทุน/หน่วย (฿)',cI),saveBtn));
   renderYieldField();
@@ -966,7 +968,7 @@ function openModalReceive(){
 // ── SPRINT 8: WIP Formulas Logic ──
 function openModalWIPFormula(wipIng) {
   var wrap = el('div', {style:{display:'flex',flexDirection:'column',gap:'16px'}});
-  wrap.appendChild(el('p',{txt:'ตั้งค่าสูตรสำหรับทำ '+wipIng.name+' 1 รอบ (Expected Yield: '+wipIng.yieldPerBatch+' '+wipIng.unit+')',style:{color:'#94a3b8',fontSize:'.875rem',margin:0}}));
+  wrap.appendChild(el('p',{txt:'ตั้งค่าสูตรการผลิต '+wipIng.name+' 1 รอบ (Expected Yield: '+wipIng.yieldPerBatch+' '+wipIng.unit+')',style:{color:'#94a3b8',fontSize:'.875rem',margin:0}}));
   
   var sw = el('div',{style:{overflowX:'auto',border:'1px solid #1e293b',borderRadius:'12px'}});
   var tbody = el('tbody',{});
@@ -976,8 +978,8 @@ function openModalWIPFormula(wipIng) {
     var raw = state.ingredients.find(i=>i.id===line.rawIngId); if(!raw) return;
     var qI=el('input',{type:'number',value:line.qty,style:{width:'72px',background:'#1e293b',border:'1px solid #334155',borderRadius:'6px',padding:'4px 8px',color:'#fff',fontSize:'.875rem'}});
     qI.addEventListener('change',async e=>{ await _sb.from('wip_formulas').update({qty:Number(e.target.value)}).eq('id',line.id); await refreshView(); });
-    var dBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569'},onClick:async function(){await _sb.from('wip_formulas').delete().eq('id',line.id);closeModal();await refreshView()}});
-    tbody.appendChild(el('tr',{},el('td',{txt:raw.name}),el('td',{},qI,el('span',{txt:' '+raw.unit,style:{color:'#94a3b8',marginLeft:'4px'}})),el('td',{},dBtn)));
+    var dBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569'},onClick:async function(){await _sb.from('wip_formulas').delete().eq('id',line.id);closeModal();await refreshView();openModalWIPFormula(wipIng)}});
+    tbody.appendChild(el('tr',{},el('td',{txt:raw.name}),el('td',{},qI,el('span',{txt:' '+raw.unit,style:{color:'#94a3b8',marginLeft:'4px'}})),el('td',{style:{whiteSpace:'nowrap',textAlign:'center'}},dBtn)));
   });
   sw.appendChild(el('table',{},el('thead',{},el('tr',{},el('th',{txt:'วัตถุดิบที่ใช้'}),el('th',{txt:'ปริมาณ/รอบ'}),el('th',{}))),tbody));
   wrap.appendChild(sw);
@@ -993,14 +995,14 @@ function openModalWIPFormula(wipIng) {
   addWrap.appendChild(el('div',{style:{flex:1}},selRaw)); addWrap.appendChild(btnAdd);
   wrap.appendChild(addWrap);
 
-  openModal('📋 สูตรการทำเบส: '+wipIng.name, wrap);
+  openModal('📋 สูตรการผลิตเบส: '+wipIng.name, wrap);
 }
 
 // ── SPRINT 8: Produce WIP (Batching) ──
 function openModalProduceWIP() {
   var form={ wipId:'', batches:1, actualYield:0 };
   var wrap = el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-  var wipOpts = [{label:'-- เลือกเบสที่ต้องการต้ม --',value:''}].concat(state.ingredients.filter(i=>i.type==='WIP/เบส').map(i=>({label:i.name,value:i.id})));
+  var wipOpts = [{label:'-- เลือกเบสที่ต้องการผลิต --',value:''}].concat(state.ingredients.filter(i=>i.type==='WIP/เบส').map(i=>({label:i.name,value:i.id})));
   var extra = el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
   
   var wipSel = mkSel(wipOpts,'',e=>{form.wipId=e.target.value; renderProdExtra()});
@@ -1042,19 +1044,19 @@ function openModalProduceWIP() {
       await _sb.from('ingredients').update({stock: newStock, cost_per_unit: newCostPerUnit}).eq('id', wipIng.id);
       
       // 3. Log Adjustment
-      await _sb.from('adjustments').insert([{ingredient_id:wipIng.id, ing_name:wipIng.name, type:'Produce WIP', qty:form.actualYield, unit:wipIng.unit, reason:'ต้มไป '+form.batches+' รอบ (ต้นทุนรับเข้า '+fmtCost(totalRawCost)+')'}]);
+      await _sb.from('adjustments').insert([{ingredient_id:wipIng.id, ing_name:wipIng.name, type:'Produce WIP', qty:form.actualYield, unit:wipIng.unit, reason:'ผลิตไป '+form.batches+' รอบ (ต้นทุนรับเข้า '+fmtCost(totalRawCost)+')'}]);
       
       closeModal(); showToast('✓ ผลิตเบสสำเร็จ!'); await refreshView();
     }});
 
-    extra.appendChild(mkField('จำนวนรอบ (สูตร) ที่ต้ม',bI));
+    extra.appendChild(mkField('จำนวนรอบ (สูตร) ที่ผลิต',bI));
     extra.appendChild(mkField('ปริมาณที่ได้จริง (Actual Yield) หน่วย: '+wipIng.unit,yI));
     extra.appendChild(el('p',{txt:'*ระบบจะตัดวัตถุดิบตามสูตร × จำนวนรอบ และคำนวณต้นทุน/หน่วยใหม่ให้อัตโนมัติ',style:{color:'#94a3b8',fontSize:'.75rem',margin:0}}));
     extra.appendChild(cBtn);
   }
   
   wrap.appendChild(mkField('เลือกเบส (WIP)', wipSel)); wrap.appendChild(extra);
-  openModal('🍳 บันทึกต้มเบสเครื่องดื่ม', wrap);
+  openModal('🍳 บันทึกการผลิตเบส', wrap);
 }
 
 function renderStockAdj(){
@@ -1108,7 +1110,7 @@ function renderRecipe(){
     function updateCalc(){var p=Number(priceInp.value||0);var netRev=p-(p*(gpPct/100));var profit=netRev-cost;var margin=netRev>0?(profit/netRev)*100:0;profitSpan.textContent=p>0?fmtDisplay(profit):'-';profitSpan.style.color=p>0?(profit>=0?'#10b981':'#f87171'):'#64748b';marginSpan.textContent=p>0?margin.toFixed(1)+'%':'-';marginSpan.style.color=p>0?(margin>=0?'#10b981':'#f87171'):'#64748b'}
     priceInp.addEventListener('input',()=>{saveBtn.style.display='inline-flex';saveBtn.style.background='rgba(16,185,129,.15)';saveBtn.style.color='#10b981';updateCalc()});
     saveBtn.addEventListener('click',async()=>{saveBtn.disabled=true;saveBtn.textContent='...';var val=Number(priceInp.value||0);if(isStore){await _sb.from('recipes').update({price:val}).eq('id',recipe.id)}else{var ex=state.platformPrices.find(x=>x.recipeId===recipe.id&&x.platformId===id);if(ex)await _sb.from('platform_prices').update({price:val}).eq('id',ex.id);else await _sb.from('platform_prices').insert([{recipe_id:recipe.id,platform_id:id,price:val}])}showToast('✓ บันทึกราคา '+name);await refreshView()});
-    tr.appendChild(el('td',{txt:name,style:{fontWeight:isStore?700:400,color:isStore?'#f59e0b':'#fff'}}));tr.appendChild(el('td',{},el('span',{cls:'badge badge-slate',txt:gpPct+'%'})));tr.appendChild(el('td',{},priceInp));tr.appendChild(el('td',{style:{textAlign:'right'}},profitSpan));tr.appendChild(el('td',{style:{textAlign:'right'}},marginSpan));tr.appendChild(el('td',{style:{textAlign:'center'}},saveBtn));
+    tr.appendChild(el('td',{txt:name,style:{fontWeight:isStore?700:400,color:isStore?'#f59e0b':'#fff',whiteSpace:'nowrap'}}));tr.appendChild(el('td',{},el('span',{cls:'badge badge-slate',txt:gpPct+'%'})));tr.appendChild(el('td',{},priceInp));tr.appendChild(el('td',{style:{textAlign:'right',whiteSpace:'nowrap'}},profitSpan));tr.appendChild(el('td',{style:{textAlign:'right',whiteSpace:'nowrap'}},marginSpan));tr.appendChild(el('td',{style:{textAlign:'center',whiteSpace:'nowrap'}},saveBtn));
     updateCalc();return tr;
   }
   pTbody.appendChild(buildPriceRow('storefront',null,'🏠 หน้าร้าน',0,recipe.price));
@@ -1129,7 +1131,7 @@ function renderRecipe(){
     qI.addEventListener('change',async e=>{await _sb.from('recipe_lines').update({qty:Number(e.target.value)}).eq('recipe_id',recipe.id).eq('ingredient_id',ing.id);await refreshView()});
     var dBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569',padding:'8px',fontSize:'1rem'},onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},onClick:async function(){await _sb.from('recipe_lines').delete().eq('recipe_id',recipe.id).eq('ingredient_id',ing.id);await refreshView()}});
     var badgeCls = ing.type==='WIP/เบส'?'badge-violet':'badge-amber';
-    tbody3.appendChild(el('tr',{},el('td',{},el('span',{txt:ing.name,style:{color:'#fff'}}),el('span',{cls:'badge '+badgeCls,txt:ing.type,style:{marginLeft:'6px'}})),el('td',{},qI,el('span',{txt:' '+ing.unit,style:{color:'#94a3b8',marginLeft:'4px'}})),el('td',{txt:fmtCost(ing.costPerUnit*Number(line.qty)),style:{textAlign:'right',color:'#10b981'}}),el('td',{style:{textAlign:'center'}},dBtn)));
+    tbody3.appendChild(el('tr',{},el('td',{},el('span',{txt:ing.name,style:{color:'#fff'}}),el('span',{cls:'badge '+badgeCls,txt:ing.type,style:{marginLeft:'6px'}})),el('td',{},qI,el('span',{txt:' '+ing.unit,style:{color:'#94a3b8',marginLeft:'4px'}})),el('td',{txt:fmtCost(ing.costPerUnit*Number(line.qty)),style:{textAlign:'right',color:'#10b981',whiteSpace:'nowrap'}}),el('td',{style:{textAlign:'center',whiteSpace:'nowrap'}},dBtn)));
   });
   sw2.appendChild(el('table',{style:{minWidth:'500px'}},el('thead',{},el('tr',{},el('th',{txt:'ส่วนผสม / เบส'}),el('th',{txt:'ปริมาณใช้/แก้ว'}),el('th',{txt:'ต้นทุนย่อย',style:{textAlign:'right'}}),el('th',{}))),tbody3));
   ingCard.appendChild(sw2);wrap.appendChild(ingCard);return wrap;
