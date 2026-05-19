@@ -18,6 +18,7 @@
     .inp{background:#1e293b;border:1px solid #334155;color:#fff;border-radius:10px;padding:10px 12px;font-size:.875rem;width:100%;outline:none;transition:border-color .15s}
     .inp:focus{border-color:#f59e0b}
     select.inp{appearance:none;-webkit-appearance:none}
+    textarea.inp{resize:vertical;min-height:72px}
     .btn{display:inline-flex;align-items:center;gap:6px;font-weight:600;border-radius:10px;cursor:pointer;border:none;transition:all .15s;user-select:none;justify-content:center;white-space:nowrap;font-size:.875rem}
     .btn:disabled{opacity:.4;cursor:not-allowed}
     .btn-primary{background:#f59e0b;color:#020617;padding:10px 16px;min-height:42px}
@@ -36,6 +37,7 @@
     .badge-amber{background:rgba(245,158,11,.2);color:#fbbf24}
     .badge-violet{background:rgba(139,92,246,.2);color:#a78bfa}
     .badge-rose{background:rgba(239,68,68,.2);color:#f87171}
+    .badge-emerald{background:rgba(16,185,129,.2);color:#34d399}
     .field{display:flex;flex-direction:column;gap:6px}
     .field label{font-size:.75rem;font-weight:600;color:#94a3b8}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -47,9 +49,49 @@
     ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
     #loading-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.95);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#10b981;font-weight:bold;font-size:1.2rem}
     #loading-overlay .spin{animation:spin 1s linear infinite;font-size:3rem;margin-bottom:16px;display:block}
+
+    /* ── RECEIPT PRINT STYLES ─────────────────────────────── */
+    #receipt-print-area{display:none}
+
+    @media print{
+      /* ซ่อนทุกอย่างในหน้าเว็บ */
+      body > *{display:none !important}
+      /* แสดงเฉพาะ receipt area */
+      #receipt-print-area{
+        display:block !important;
+        width:80mm;          /* เปลี่ยนเป็น 58mm สำหรับ thermal 58mm */
+        margin:0 auto;
+        font-family:'Courier New',Courier,monospace;
+        font-size:12px;
+        color:#000;
+        background:#fff;
+        padding:8px 4px;
+      }
+      #receipt-print-area *{color:#000 !important;background:none !important}
+      @page{
+        size:80mm auto;      /* auto height = ยาวตามเนื้อหา */
+        margin:4mm 2mm;
+      }
+    }
+
+    /* receipt layout (visible when printing) */
+    .rcpt-shop-name{font-size:16px;font-weight:700;text-align:center;margin-bottom:2px}
+    .rcpt-addr{font-size:10px;text-align:center;margin-bottom:2px;line-height:1.4}
+    .rcpt-divider{border:none;border-top:1px dashed #000;margin:6px 0}
+    .rcpt-row{display:flex;justify-content:space-between;font-size:11px;margin:2px 0}
+    .rcpt-row.bold{font-weight:700;font-size:13px}
+    .rcpt-center{text-align:center;font-size:10px;margin-top:6px;line-height:1.6}
+    .rcpt-order-no{font-size:11px;text-align:center;margin-bottom:4px;font-weight:700}
+
+    /* KOT Slip */
+    .kot-title{font-size:18px;font-weight:700;text-align:center;letter-spacing:2px;margin:4px 0}
+    .kot-item{font-size:14px;font-weight:700;padding:4px 0;border-bottom:1px dashed #000}
   </style>
 </head>
 <body>
+
+<!-- Hidden print area – populated by buildReceipt() -->
+<div id="receipt-print-area"></div>
 
 <div id="loading-overlay">
   <span class="spin">🔄</span>
@@ -75,12 +117,29 @@
 
 <script>
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
-const SUPABASE_URL = 'https://bxxnockrzvvmwwpjabve.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4eG5vY2tyenZ2bXd3cGphYnZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNzMyOTMsImV4cCI6MjA5NDY0OTI5M30.lbHiUdTEhqxkH9EZUkNhHODo_PxfcTDwNaqG1pJvN90';
+var SUPABASE_URL = 'https://bxxnockrzvvmwwpjabve.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4eG5vY2tyenZ2bXd3cGphYnZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNzMyOTMsImV4cCI6MjA5NDY0OTI5M30.lbHiUdTEhqxkH9EZUkNhHODo_PxfcTDwNaqG1pJvN90';
+var _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ✅ FIX 1: ใช้ window.supabase.createClient แทนการอ้างชื่อตัวแปรตัวเอง
-const { createClient } = window.supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ─── SHOP SETTINGS (localStorage) ────────────────────────────────────────────
+var DEFAULT_SETTINGS = {
+  shopName: 'ร้านชาไทย',
+  logoUrl: '',
+  address: '123 ถนนตัวอย่าง แขวงสุขุมวิท กรุงเทพฯ 10110\nโทร: 02-xxx-xxxx',
+  receiptFooter: 'ขอบคุณที่ใช้บริการ 🙏\nกรุณาตรวจสอบทอนก่อนออกจากร้าน',
+  printOnCheckout: true,
+  paperSize: '80mm',
+};
+
+function loadSettings(){
+  try{
+    var s=JSON.parse(localStorage.getItem('pos_settings')||'{}');
+    return Object.assign({},DEFAULT_SETTINGS,s);
+  }catch(e){return Object.assign({},DEFAULT_SETTINGS)}
+}
+function saveSettings(obj){
+  localStorage.setItem('pos_settings',JSON.stringify(obj));
+}
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 var state = {
@@ -94,6 +153,9 @@ var state = {
   gpPercent: 30,
   adsDiscount: 0,
   selectedRecipeId: null,
+  settings: loadSettings(),
+  // runtime: last checkout snapshot for receipt
+  lastOrder: null,
 };
 
 var UNIT_FAMILIES = {
@@ -103,54 +165,50 @@ var UNIT_FAMILIES = {
 };
 
 var PAGES = [
-  {id:'dashboard',label:'Dashboard',icon:'⊞'},
-  {id:'pos',label:'ระบบ POS',icon:'🖥'},
-  {id:'stock',label:'จัดการสต็อก',icon:'📦'},
-  {id:'recipe',label:'สูตรอาหาร',icon:'📋'},
+  {id:'dashboard', label:'Dashboard',      icon:'⊞'},
+  {id:'pos',       label:'ระบบ POS',       icon:'🖥'},
+  {id:'stock',     label:'จัดการสต็อก',   icon:'📦'},
+  {id:'recipe',    label:'สูตรอาหาร',     icon:'📋'},
+  {id:'settings',  label:'ตั้งค่าร้าน',   icon:'⚙️'},
 ];
 
 // ─── CLOUD DATA ───────────────────────────────────────────────────────────────
-async function fetchCloudData() {
-  try {
-    const { data: ings } = await db.from('ingredients').select('*').order('id');
-    state.ingredients = (ings || []).map(function(i){return{
-      id:i.id, name:i.name, type:i.type, unit:i.unit,
-      stock:Number(i.stock), costPerUnit:Number(i.cost_per_unit), minStock:Number(i.min_stock)
+async function fetchCloudData(){
+  try{
+    var r1=await _sb.from('ingredients').select('*').order('id');
+    state.ingredients=(r1.data||[]).map(function(i){return{
+      id:i.id,name:i.name,type:i.type,unit:i.unit,
+      stock:Number(i.stock),costPerUnit:Number(i.cost_per_unit),minStock:Number(i.min_stock)
     }});
 
-    const { data: recs } = await db.from('recipes').select('*').order('id');
-    const { data: lines } = await db.from('recipe_lines').select('*');
-    state.recipes = (recs || []).map(function(r){return{
-      id:r.id, name:r.name, price:Number(r.price),
-      lines:(lines||[]).filter(function(l){return l.recipe_id===r.id}).map(function(l){return{ingId:l.ing_id,qty:Number(l.qty)}})
+    var r2=await _sb.from('recipes').select('*').order('id');
+    var r3=await _sb.from('recipe_lines').select('*');
+    state.recipes=(r2.data||[]).map(function(r){return{
+      id:r.id,name:r.name,price:Number(r.price),
+      lines:(r3.data||[]).filter(function(l){return l.recipe_id===r.id}).map(function(l){return{ingId:l.ingredient_id,qty:Number(l.qty)}})
+    }});
+    if(state.recipes.length>0&&!state.selectedRecipeId)state.selectedRecipeId=state.recipes[0].id;
+
+    var r4=await _sb.from('orders').select('*').order('created_at',{ascending:false}).limit(200);
+    state.orders=(r4.data||[]).map(function(o){return{
+      id:o.id,type:o.type,items:o.items,gross:Number(o.gross),net:Number(o.net),cogs:Number(o.cogs),
+      gpPercent:Number(o.gp_percent||0),adsDiscount:Number(o.ads_discount||0),
+      time:new Date(o.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}),
+      dateStr:new Date(o.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
     }});
 
-    if (state.recipes.length > 0 && !state.selectedRecipeId) {
-      state.selectedRecipeId = state.recipes[0].id;
-    }
-
-    const { data: ords } = await db.from('orders').select('*').order('created_at', {ascending:false});
-    state.orders = (ords || []).map(function(o){return{
-      type:o.type, items:o.items, gross:Number(o.gross), net:Number(o.net), cogs:Number(o.cogs),
-      time:new Date(o.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})
-    }});
-
-    const { data: adjs } = await db.from('adjustments').select('*').order('created_at', {ascending:false});
-    state.adjustments = (adjs || []).map(function(a){return{
-      id:a.id, ingName:a.ing_name, type:a.type, qty:Number(a.qty), unit:a.unit, reason:a.reason,
+    var r5=await _sb.from('adjustments').select('*').order('created_at',{ascending:false});
+    state.adjustments=(r5.data||[]).map(function(a){return{
+      id:a.id,ingName:a.ing_name,type:a.type,qty:Number(a.qty),unit:a.unit,reason:a.reason,
       date:new Date(a.created_at).toLocaleDateString('th-TH')
     }});
-
-  } catch(err) {
-    console.error('fetchCloudData error:', err);
-    alert('เกิดข้อผิดพลาดในการโหลดข้อมูลจาก Cloud');
+  }catch(err){
+    console.error('fetchCloudData:',err);
+    showToast('⚠️ โหลดข้อมูลไม่สำเร็จ');
   }
 }
 
-async function refreshView() {
-  await fetchCloudData();
-  render();
-}
+async function refreshView(){await fetchCloudData();render()}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fmtCost(n){return '฿'+Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:4})}
@@ -162,9 +220,19 @@ function calcRecipeCost(lines,ings){
   },0);
 }
 
+// Parse "ชาไทยเย็น x2, กาแฟเย็น x1" → [{name,qty}, ...]
+function parseOrderItems(itemsStr){
+  if(!itemsStr)return[];
+  return itemsStr.split(',').map(function(seg){
+    seg=seg.trim();
+    var m=seg.match(/^(.+?)\s*x(\d+)$/i);
+    return m?{name:m[1].trim(),qty:parseInt(m[2],10)}:{name:seg,qty:1};
+  });
+}
+
 function el(tag,props){
   var e=document.createElement(tag);
-  if(props) Object.keys(props).forEach(function(k){
+  if(props)Object.keys(props).forEach(function(k){
     var v=props[k];
     if(k==='cls'){e.className=v}
     else if(k==='style'&&typeof v==='object'){Object.assign(e.style,v)}
@@ -181,11 +249,9 @@ function el(tag,props){
   }
   return e;
 }
-
 function mkField(labelTxt,inputEl,req){return el('div',{cls:'field'},el('label',{txt:labelTxt+(req?'*':'')}),inputEl)}
-
 function mkInp(opts){
-  var e=document.createElement('input'); e.className='inp';
+  var e=document.createElement('input');e.className='inp';
   if(opts){
     if(opts.type)e.type=opts.type;
     if(opts.placeholder)e.placeholder=opts.placeholder;
@@ -194,9 +260,8 @@ function mkInp(opts){
   }
   return e;
 }
-
 function mkSel(options,value,onChange){
-  var e=document.createElement('select'); e.className='inp';
+  var e=document.createElement('select');e.className='inp';
   options.forEach(function(opt){
     var o=document.createElement('option');
     o.value=opt.value!=null?opt.value:opt.label;
@@ -207,19 +272,16 @@ function mkSel(options,value,onChange){
   e.addEventListener('change',onChange);
   return e;
 }
-
 var _toastTimer;
 function showToast(msg){
   var t=document.getElementById('toast');
-  t.textContent='✓  '+msg; t.style.display='flex';
+  t.textContent=msg;t.style.display='flex';
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(function(){t.style.display='none'},3000);
 }
-
 function closeModal(){document.getElementById('modal-container').innerHTML=''}
-
 function openModal(title,bodyEl){
-  var mc=document.getElementById('modal-container'); mc.innerHTML='';
+  var mc=document.getElementById('modal-container');mc.innerHTML='';
   var bg=el('div',{cls:'modal-bg',onClick:closeModal});
   var box=el('div',{cls:'modal-box',onClick:function(e){e.stopPropagation()}},
     el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1e293b'}},
@@ -228,18 +290,19 @@ function openModal(title,bodyEl){
     ),
     el('div',{cls:'modal-body'},bodyEl)
   );
-  bg.appendChild(box); mc.appendChild(bg);
+  bg.appendChild(box);mc.appendChild(bg);
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
 function buildNav(){
-  var nav=document.getElementById('sidebar-nav'); nav.innerHTML='';
+  var nav=document.getElementById('sidebar-nav');nav.innerHTML='';
   PAGES.forEach(function(p){
     var active=state.active===p.id||(state.active==='stock_adj'&&p.id==='stock');
     var btn=el('button',{
       title:p.label,
-      style:{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',padding:'10px',borderRadius:'10px',border:'none',cursor:'pointer',
-             background:active?'#f59e0b':'transparent',color:active?'#020617':'#94a3b8',fontSize:'1.25rem',transition:'all .15s'},
+      style:{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',padding:'10px',borderRadius:'10px',
+             border:'none',cursor:'pointer',background:active?'#f59e0b':'transparent',
+             color:active?'#020617':'#94a3b8',fontSize:'1.25rem',transition:'all .15s'},
       onClick:function(){navigate(p.id)}
     },p.icon);
     nav.appendChild(btn);
@@ -247,48 +310,74 @@ function buildNav(){
 }
 
 function navigate(id){
-  state.active=id; buildNav();
-  var titles={dashboard:'Dashboard',pos:'ระบบ POS',stock:'จัดการสต็อก',recipe:'สูตรอาหาร',stock_adj:'ประวัติสต็อก'};
+  state.active=id;buildNav();
+  var titles={dashboard:'Dashboard',pos:'ระบบ POS',stock:'จัดการสต็อก',
+              recipe:'สูตรอาหาร',stock_adj:'ประวัติสต็อก',settings:'ตั้งค่าร้าน / ใบเสร็จ'};
   document.getElementById('header-title').textContent=titles[id]||'';
   render();
 }
 
-// ─── RENDER ROUTER ────────────────────────────────────────────────────────────
 function render(){
-  var main=document.getElementById('main'); main.innerHTML='';
+  var main=document.getElementById('main');main.innerHTML='';
   if(state.active==='dashboard')main.appendChild(renderDashboard());
   else if(state.active==='pos')main.appendChild(renderPOS());
   else if(state.active==='stock')main.appendChild(renderInventory());
   else if(state.active==='stock_adj')main.appendChild(renderStockAdj());
   else if(state.active==='recipe')main.appendChild(renderRecipe());
+  else if(state.active==='settings')main.appendChild(renderSettings());
 }
 
-// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SPRINT 5 · PART 1 ── ADVANCED DASHBOARD ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 function renderDashboard(){
   var orders=state.orders;
-  var totalNet=orders.reduce(function(s,o){return s+o.net},0);
+
+  // ── Totals ──────────────────────────────────────────────
+  var totalNet =orders.reduce(function(s,o){return s+o.net},0);
   var totalCogs=orders.reduce(function(s,o){return s+(o.cogs||0)},0);
   var netProfit=totalNet-totalCogs;
-  var margin=totalNet>0?(netProfit/totalNet)*100:0;
-  var profit=netProfit>=0;
+  var margin   =totalNet>0?(netProfit/totalNet)*100:0;
+  var profit   =netProfit>=0;
 
+  // ── Per-platform split ──────────────────────────────────
+  var sfOrders=orders.filter(function(o){return o.type==='storefront'});
+  var dvOrders=orders.filter(function(o){return o.type==='delivery'});
+  function platformStats(arr){
+    var net=arr.reduce(function(s,o){return s+o.net},0);
+    var cogs=arr.reduce(function(s,o){return s+(o.cogs||0)},0);
+    return{count:arr.length,net:net,profit:net-cogs,pct:totalNet>0?(net/totalNet*100):0};
+  }
+  var sf=platformStats(sfOrders);
+  var dv=platformStats(dvOrders);
+
+  // ── Best-selling items ──────────────────────────────────
+  var itemMap={};
+  orders.forEach(function(o){
+    parseOrderItems(o.items).forEach(function(item){
+      itemMap[item.name]=(itemMap[item.name]||0)+item.qty;
+    });
+  });
+  var bestSelling=Object.keys(itemMap).map(function(name){
+    return{name:name,qty:itemMap[name]};
+  }).sort(function(a,b){return b.qty-a.qty}).slice(0,8);
+  var maxQty=bestSelling.length>0?bestSelling[0].qty:1;
+
+  // ── Build UI ────────────────────────────────────────────
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-  var grid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}});
 
-  grid.appendChild(el('div',{cls:'card'},
-    el('div',{style:{padding:'16px'}},
-      el('p',{txt:'ยอดขายรับสุทธิ (Net Rev.)',style:{color:'#94a3b8',fontSize:'.75rem',margin:'0 0 4px'}}),
-      el('p',{txt:fmtDisplay(totalNet),style:{color:'#fff',fontWeight:900,fontSize:'1.4rem',margin:'0 0 4px'}}),
-      el('p',{txt:'หลังหัก GP/Ads แล้ว',style:{color:'#64748b',fontSize:'.7rem',margin:0}})
-    )
-  ));
-  grid.appendChild(el('div',{cls:'card',style:{borderColor:'rgba(159,18,57,.4)'}},
-    el('div',{style:{padding:'16px'}},
-      el('p',{txt:'ต้นทุนวัตถุดิบ (COGS)',style:{color:'#f87171',fontSize:'.75rem',margin:'0 0 4px'}}),
-      el('p',{txt:'-'+fmtDisplay(totalCogs),style:{color:'#f87171',fontWeight:900,fontSize:'1.4rem',margin:'0 0 4px'}}),
-      el('p',{txt:'Cost of Goods Sold',style:{color:'rgba(248,113,113,.5)',fontSize:'.7rem',margin:0}})
-    )
-  ));
+  // 1. Summary KPI row
+  var grid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}});
+  grid.appendChild(el('div',{cls:'card'},el('div',{style:{padding:'16px'}},
+    el('p',{txt:'ยอดขายรับสุทธิ (Net Rev.)',style:{color:'#94a3b8',fontSize:'.75rem',margin:'0 0 4px'}}),
+    el('p',{txt:fmtDisplay(totalNet),style:{color:'#fff',fontWeight:900,fontSize:'1.4rem',margin:'0 0 4px'}}),
+    el('p',{txt:'หลังหัก GP/Ads แล้ว',style:{color:'#64748b',fontSize:'.7rem',margin:0}})
+  )));
+  grid.appendChild(el('div',{cls:'card',style:{borderColor:'rgba(159,18,57,.4)'}},el('div',{style:{padding:'16px'}},
+    el('p',{txt:'ต้นทุนวัตถุดิบ (COGS)',style:{color:'#f87171',fontSize:'.75rem',margin:'0 0 4px'}}),
+    el('p',{txt:'-'+fmtDisplay(totalCogs),style:{color:'#f87171',fontWeight:900,fontSize:'1.4rem',margin:'0 0 4px'}}),
+    el('p',{txt:'Cost of Goods Sold',style:{color:'rgba(248,113,113,.5)',fontSize:'.7rem',margin:0}})
+  )));
   grid.appendChild(el('div',{cls:'card',style:{gridColumn:'1/-1',borderColor:profit?'rgba(16,185,129,.4)':'rgba(239,68,68,.4)'}},
     el('div',{style:{padding:'16px',display:'flex',justifyContent:'space-between',alignItems:'flex-end'}},
       el('div',{},
@@ -303,6 +392,71 @@ function renderDashboard(){
   ));
   wrap.appendChild(grid);
 
+  // 2. Platform breakdown ─── NEW ───
+  var platCard=el('div',{cls:'card'});
+  platCard.appendChild(el('div',{cls:'card-head',txt:'📊 สรุปยอดขายตามแพลตฟอร์ม'}));
+  var platGrid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0',padding:'16px',gap:'12px'}});
+
+  function platformBlock(label,icon,stats,accentColor,bgColor){
+    var block=el('div',{style:{background:bgColor,border:'1px solid '+accentColor,borderRadius:'12px',padding:'14px',display:'flex',flexDirection:'column',gap:'8px'}});
+    block.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'2px'}},
+      el('span',{txt:icon,style:{fontSize:'1.2rem'}}),
+      el('span',{txt:label,style:{color:accentColor,fontWeight:700,fontSize:'.875rem'}})
+    ));
+    // bar
+    var barWrap=el('div',{style:{background:'rgba(0,0,0,.3)',borderRadius:'4px',height:'6px',overflow:'hidden',margin:'4px 0'}});
+    var barFill=el('div',{style:{height:'100%',borderRadius:'4px',background:accentColor,width:stats.pct.toFixed(1)+'%',transition:'width .6s ease'}});
+    barWrap.appendChild(barFill);
+    block.appendChild(barWrap);
+    // stats
+    var rows=[
+      {label:'จำนวนบิล',  val:stats.count+' บิล'},
+      {label:'ยอดรับสุทธิ',val:fmtDisplay(stats.net)},
+      {label:'กำไร',      val:fmtDisplay(stats.profit)},
+      {label:'สัดส่วน',   val:stats.pct.toFixed(1)+'%'},
+    ];
+    rows.forEach(function(r){
+      block.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.75rem'}},
+        el('span',{txt:r.label,style:{color:'#94a3b8'}}),
+        el('span',{txt:r.val,style:{color:accentColor,fontWeight:700}})
+      ));
+    });
+    return block;
+  }
+  platGrid.appendChild(platformBlock('หน้าร้าน','🏠',sf,'#f59e0b','rgba(245,158,11,.06)'));
+  platGrid.appendChild(platformBlock('เดลิเวอรี่','🛵',dv,'#f97316','rgba(249,115,22,.06)'));
+  platCard.appendChild(platGrid);
+  wrap.appendChild(platCard);
+
+  // 3. Best-selling items ─── NEW ───
+  var bsCard=el('div',{cls:'card'});
+  bsCard.appendChild(el('div',{cls:'card-head',txt:'🏆 เมนูขายดี (แก้วรวม)'}));
+  if(bestSelling.length===0){
+    bsCard.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีข้อมูลออเดอร์',style:{textAlign:'center',color:'#475569',margin:0}})));
+  }else{
+    var bsBody=el('div',{style:{padding:'8px 16px'}});
+    var medals=['🥇','🥈','🥉'];
+    bestSelling.forEach(function(item,idx){
+      var pct=maxQty>0?(item.qty/maxQty*100):0;
+      var rowWrap=el('div',{style:{marginBottom:'10px'}});
+      rowWrap.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}},
+        el('div',{style:{display:'flex',alignItems:'center',gap:'6px',minWidth:0}},
+          el('span',{txt:medals[idx]||'  ',style:{flexShrink:0,fontSize:idx<3?'1rem':'.75rem'}}),
+          el('span',{txt:'#'+(idx+1),style:{color:'#475569',fontSize:'.75rem',flexShrink:0}}),
+          el('span',{txt:item.name,style:{color:'#fff',fontWeight:600,fontSize:'.875rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}})
+        ),
+        el('span',{txt:item.qty+' แก้ว',style:{color:'#f59e0b',fontWeight:700,fontSize:'.875rem',flexShrink:0,marginLeft:'8px'}})
+      ));
+      var bar=el('div',{style:{height:'6px',background:'rgba(255,255,255,.07)',borderRadius:'4px',overflow:'hidden'}});
+      bar.appendChild(el('div',{style:{height:'100%',borderRadius:'4px',background:'linear-gradient(90deg,#f59e0b,#f97316)',width:pct+'%',transition:'width .6s ease'}}));
+      rowWrap.appendChild(bar);
+      bsBody.appendChild(rowWrap);
+    });
+    bsCard.appendChild(bsBody);
+  }
+  wrap.appendChild(bsCard);
+
+  // 4. Order history table
   var tableCard=el('div',{cls:'card'});
   tableCard.appendChild(el('div',{cls:'card-head',txt:'ประวัติการขาย ('+orders.length+' บิล)'}));
   if(orders.length===0){
@@ -335,6 +489,91 @@ function renderDashboard(){
   return wrap;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SPRINT 5 · PART 2 ── RECEIPT & KOT SYSTEM ───────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Generate order number from timestamp
+function genOrderNo(){
+  var n=Date.now().toString().slice(-6);
+  return '#'+n;
+}
+
+// Build HTML for thermal receipt and inject into #receipt-print-area
+function buildReceipt(orderData){
+  var s=state.settings;
+  var orderNo=genOrderNo();
+  var now=new Date();
+  var timeStr=now.toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short',year:'numeric'});
+
+  var html='';
+
+  // Logo
+  if(s.logoUrl){
+    html+='<div style="text-align:center;margin-bottom:6px"><img src="'+s.logoUrl+'" style="max-width:60px;max-height:60px;object-fit:contain"/></div>';
+  }
+
+  html+='<div class="rcpt-shop-name">'+escHtml(s.shopName)+'</div>';
+  html+='<div class="rcpt-addr">'+escHtml(s.address).replace(/\n/g,'<br>')+'</div>';
+  html+='<hr class="rcpt-divider">';
+  html+='<div class="rcpt-order-no">ออเดอร์ '+orderNo+'</div>';
+  html+='<div class="rcpt-row"><span>'+timeStr+'</span><span>'+(orderData.type==='storefront'?'🏠 หน้าร้าน':'🛵 เดลิเวอรี่')+'</span></div>';
+  html+='<hr class="rcpt-divider">';
+
+  // Items
+  parseOrderItems(orderData.items).forEach(function(item){
+    var recipe=state.recipes.find(function(r){return r.name===item.name});
+    var price=recipe?recipe.price*item.qty:0;
+    html+='<div class="rcpt-row">';
+    html+='<span>'+escHtml(item.name)+' x'+item.qty+'</span>';
+    html+='<span>'+(price>0?fmtDisplay(price):'')+'</span>';
+    html+='</div>';
+  });
+
+  html+='<hr class="rcpt-divider">';
+
+  // Totals
+  html+='<div class="rcpt-row"><span>ยอดก่อนหัก</span><span>'+fmtDisplay(orderData.gross)+'</span></div>';
+  if(orderData.type==='delivery'){
+    var gpDed=orderData.gross-orderData.net-(orderData.adsDiscount||0);
+    html+='<div class="rcpt-row" style="color:#d97706"><span>หัก GP ('+orderData.gpPercent+'%)</span><span>-'+fmtDisplay(gpDed)+'</span></div>';
+    if(orderData.adsDiscount>0){
+      html+='<div class="rcpt-row" style="color:#d97706"><span>หัก Ads/ส่วนลด</span><span>-'+fmtDisplay(orderData.adsDiscount)+'</span></div>';
+    }
+  }
+  html+='<div class="rcpt-row bold"><span>ยอดรับสุทธิ</span><span>'+fmtDisplay(orderData.net)+'</span></div>';
+  html+='<hr class="rcpt-divider">';
+  html+='<div class="rcpt-center">'+escHtml(s.receiptFooter).replace(/\n/g,'<br>')+'</div>';
+
+  document.getElementById('receipt-print-area').innerHTML=html;
+}
+
+// KOT slip — compact bar sheet
+function buildKOT(orderData){
+  var orderNo=genOrderNo();
+  var now=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  var html='<div class="kot-title">KOT '+orderNo+'</div>';
+  html+='<div style="text-align:center;font-size:11px;margin-bottom:8px">'+now+' — '+(orderData.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่')+'</div>';
+  html+='<hr class="rcpt-divider">';
+  parseOrderItems(orderData.items).forEach(function(item){
+    html+='<div class="kot-item">'+item.qty+' × '+escHtml(item.name)+'</div>';
+  });
+  document.getElementById('receipt-print-area').innerHTML=html;
+}
+
+function escHtml(str){
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function printReceipt(orderData){
+  buildReceipt(orderData);
+  setTimeout(function(){window.print()},120);
+}
+function printKOT(orderData){
+  buildKOT(orderData);
+  setTimeout(function(){window.print()},120);
+}
+
 // ─── POS ──────────────────────────────────────────────────────────────────────
 function renderPOS(){
   var s=state;
@@ -343,6 +582,7 @@ function renderPOS(){
   var netRevenue=s.orderType==='delivery'?grossTotal-gpDeduction-s.adsDiscount:grossTotal;
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
 
+  // Mode toggle
   var toggle=el('div',{style:{display:'flex',gap:'8px',background:'#0f172a',padding:'8px',borderRadius:'16px',border:'1px solid #1e293b'}});
   ['storefront','delivery'].forEach(function(type){
     var active=s.orderType===type;
@@ -356,6 +596,7 @@ function renderPOS(){
   });
   wrap.appendChild(toggle);
 
+  // Menu grid
   var menuGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'12px'}});
   s.recipes.forEach(function(r){
     var card=el('div',{cls:'card',
@@ -372,6 +613,7 @@ function renderPOS(){
   });
   wrap.appendChild(menuGrid);
 
+  // Cart
   var cartCard=el('div',{cls:'card'});
   cartCard.appendChild(el('div',{cls:'card-head',txt:'ตะกร้าออเดอร์'}));
   var cartBody=el('div',{style:{padding:'8px',minHeight:'60px'}});
@@ -395,6 +637,7 @@ function renderPOS(){
   }
   cartCard.appendChild(cartBody);
 
+  // Cart footer
   var footer=el('div',{style:{padding:'16px',background:'#020617',borderTop:'1px solid #1e293b',display:'flex',flexDirection:'column',gap:'10px'}});
   footer.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',color:'#94a3b8',fontSize:'.875rem'}},
     el('span',{txt:'ยอดรวมปกติ'}),el('span',{txt:fmtDisplay(grossTotal),style:{color:'#fff'}})
@@ -415,14 +658,30 @@ function renderPOS(){
     el('span',{txt:fmtDisplay(netRevenue),style:{color:'#10b981',fontWeight:900,fontSize:'1.75rem'}})
   ));
 
-  // ✅ FIX 2: ส่ง event เป็น parameter แทนการใช้ global event
+  // ── Checkout button ───────────────────────────────────────
   var ckBtn=el('button',{
-    txt:'ยืนยัน & ตัดสต็อก',cls:'btn btn-emerald',
+    txt:'✅ ยืนยัน & ตัดสต็อก',cls:'btn btn-emerald',
     style:{width:'100%',fontSize:'1.1rem',minHeight:'52px'},
-    onClick:function(e){checkoutLogic(e)}
+    onClick:function(e){checkoutLogic(e,grossTotal,netRevenue)}
   });
   if(s.cart.length===0){ckBtn.disabled=true;ckBtn.style.background='#1e293b';ckBtn.style.color='#475569'}
   footer.appendChild(ckBtn);
+
+  // KOT button (always visible when cart not empty)
+  if(s.cart.length>0){
+    var kotBtn=el('button',{
+      txt:'🍹 พิมพ์ใบ KOT (บาร์)',cls:'btn btn-ghost',
+      style:{width:'100%',minHeight:'42px'},
+      onClick:function(){
+        printKOT({
+          type:state.orderType,
+          items:state.cart.map(function(i){return i.name+' x'+i.qty}).join(', ')
+        });
+      }
+    });
+    footer.appendChild(kotBtn);
+  }
+
   cartCard.appendChild(footer);
   wrap.appendChild(cartCard);
   return wrap;
@@ -434,22 +693,18 @@ function addToCart(recipe){
   else state.cart=state.cart.concat([Object.assign({},recipe,{qty:1})]);
   render();
 }
-
 function updateQty(id,delta){
   state.cart=state.cart.map(function(i){return i.id===id?Object.assign({},i,{qty:Math.max(0,i.qty+delta)}):i}).filter(function(i){return i.qty>0});
   render();
 }
 
-// ✅ FIX 2: รับ e เป็น parameter
-async function checkoutLogic(e){
+// ── Checkout: save to cloud, deduct stock, then print ─────
+async function checkoutLogic(e, grossTotal, netRevenue){
   if(state.cart.length===0)return;
   var btn=e.currentTarget;
-  btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  btn.disabled=true;btn.textContent='กำลังบันทึก...';
   var s=state;
-  var grossTotal=s.cart.reduce(function(sum,item){return sum+(item.price*item.qty)},0);
-  var gpDeduction=s.orderType==='delivery'?grossTotal*(s.gpPercent/100):0;
-  var netRevenue=s.orderType==='delivery'?grossTotal-gpDeduction-s.adsDiscount:grossTotal;
-  var stockDed={}; var totalCogs=0;
+  var stockDed={};var totalCogs=0;
   s.cart.forEach(function(cartItem){
     var recipe=s.recipes.find(function(r){return r.id===cartItem.id});
     if(recipe){
@@ -458,23 +713,47 @@ async function checkoutLogic(e){
     }
   });
   try{
-    await db.from('orders').insert([{
-      type:s.orderType, items:s.cart.map(function(i){return i.name+' x'+i.qty}).join(', '),
-      gross:grossTotal, net:netRevenue, cogs:totalCogs
+    // Build order snapshot for receipt (before clearing cart)
+    var orderSnapshot={
+      type:s.orderType,
+      items:s.cart.map(function(i){return i.name+' x'+i.qty}).join(', '),
+      gross:grossTotal,
+      net:netRevenue,
+      cogs:totalCogs,
+      gpPercent:s.gpPercent,
+      adsDiscount:s.adsDiscount,
+    };
+
+    await _sb.from('orders').insert([{
+      type:s.orderType,
+      items:orderSnapshot.items,
+      gross:grossTotal,
+      net:netRevenue,
+      cogs:totalCogs,
+      gp_percent:s.gpPercent,
+      ads_discount:s.adsDiscount,
     }]);
+
     for(var i=0;i<state.ingredients.length;i++){
       var ing=state.ingredients[i];
       if(stockDed[ing.id]){
-        await db.from('ingredients').update({stock:Math.max(0,ing.stock-stockDed[ing.id])}).eq('id',ing.id);
+        await _sb.from('ingredients').update({stock:Math.max(0,ing.stock-stockDed[ing.id])}).eq('id',ing.id);
       }
     }
-    state.cart=[]; state.adsDiscount=0;
-    showToast('รับออเดอร์และตัดสต็อกบนคลาวด์สำเร็จ!');
+
+    state.cart=[];state.adsDiscount=0;
+    showToast('✓ รับออเดอร์และตัดสต็อกบน Cloud สำเร็จ');
+
+    // Print receipt if setting is on
+    if(s.settings.printOnCheckout){
+      printReceipt(orderSnapshot);
+    }
+
     await refreshView();
   }catch(err){
     console.error(err);
-    alert('เกิดข้อผิดพลาด ไม่สามารถบันทึกออเดอร์ได้');
-    btn.disabled=false; btn.textContent='ยืนยัน & ตัดสต็อก';
+    alert('เกิดข้อผิดพลาด: '+err.message);
+    btn.disabled=false;btn.textContent='✅ ยืนยัน & ตัดสต็อก';
   }
 }
 
@@ -499,7 +778,7 @@ function renderInventory(){
       onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},
       onClick:async function(){
         if(confirm('ลบรายการนี้ออกจากฐานข้อมูล?')){
-          await db.from('ingredients').delete().eq('id',ing.id);
+          await _sb.from('ingredients').delete().eq('id',ing.id);
           await refreshView();
         }
       }
@@ -516,29 +795,24 @@ function renderInventory(){
     el('thead',{},el('tr',{},el('th',{txt:'ชื่อรายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'สต็อกคงเหลือ'}),el('th',{txt:'ต้นทุนเฉลี่ย/หน่วย'}),el('th',{txt:'จัดการ',style:{textAlign:'center'}}))),
     tbody
   ));
-  var card=el('div',{cls:'card'}); card.appendChild(sw);
+  var card=el('div',{cls:'card'});card.appendChild(sw);
   wrap.appendChild(card);
   return wrap;
 }
 
 function openModalAddIng(){
   var form={name:'',type:'วัตถุดิบ',unit:'กรัม',stock:'',costPerUnit:'',minStock:''};
-  var nI=mkInp({placeholder:'ชื่อรายการ'}); nI.addEventListener('input',function(e){form.name=e.target.value});
+  var nI=mkInp({placeholder:'ชื่อรายการ'});nI.addEventListener('input',function(e){form.name=e.target.value});
   var typeEl=mkSel([{label:'วัตถุดิบ'},{label:'แพคเกจจิ้ง'}],form.type,function(e){form.type=e.target.value});
   var unitEl=mkSel([{label:'กรัม'},{label:'มล.'},{label:'ชิ้น'}],form.unit,function(e){form.unit=e.target.value});
-  var sI=mkInp({type:'number',placeholder:'0'}); sI.addEventListener('input',function(e){form.stock=e.target.value});
-  var mI=mkInp({type:'number',placeholder:'0'}); mI.addEventListener('input',function(e){form.minStock=e.target.value});
-  var cI=mkInp({type:'number',placeholder:'0.00'}); cI.addEventListener('input',function(e){form.costPerUnit=e.target.value});
-  // ✅ FIX 3: ใช้ this.disabled แทนการอ้าง saveBtn ก่อน assign เสร็จ
+  var sI=mkInp({type:'number',placeholder:'0'});sI.addEventListener('input',function(e){form.stock=e.target.value});
+  var mI=mkInp({type:'number',placeholder:'0'});mI.addEventListener('input',function(e){form.minStock=e.target.value});
+  var cI=mkInp({type:'number',placeholder:'0.00'});cI.addEventListener('input',function(e){form.costPerUnit=e.target.value});
   var saveBtn=el('button',{cls:'btn btn-primary',txt:'บันทึกเข้า Cloud',style:{width:'100%'},onClick:async function(){
     if(!form.name||!form.stock||!form.costPerUnit)return showToast('กรอกข้อมูลให้ครบ');
     this.disabled=true;
-    await db.from('ingredients').insert([{
-      name:form.name, type:form.type, unit:form.unit,
-      stock:Number(form.stock), cost_per_unit:Number(form.costPerUnit), min_stock:Number(form.minStock||0)
-    }]);
-    closeModal(); showToast('สร้างรายการวัตถุดิบใหม่บน Cloud แล้ว');
-    await refreshView();
+    await _sb.from('ingredients').insert([{name:form.name,type:form.type,unit:form.unit,stock:Number(form.stock),cost_per_unit:Number(form.costPerUnit),min_stock:Number(form.minStock||0)}]);
+    closeModal();showToast('สร้างรายการวัตถุดิบใหม่แล้ว');await refreshView();
   }});
   openModal('เพิ่มวัตถุดิบ / แพคเกจจิ้งใหม่',el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}},
     mkField('ชื่อรายการ',nI),
@@ -554,63 +828,46 @@ function openModalReceive(){
   var opts=[{label:'-- เลือกวัตถุดิบ --',value:''}].concat(state.ingredients.map(function(i){return{label:i.name+' (คลังมี: '+i.stock+' '+i.unit+')',value:i.id}}));
   var extra=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
   var ingSel=mkSel(opts,'',function(e){form.ingId=e.target.value;buildRecvExtra()});
-
   function buildRecvExtra(){
     extra.innerHTML='';
     var ing=state.ingredients.find(function(i){return i.id===Number(form.ingId)});
     if(!ing)return;
     var units=UNIT_FAMILIES[ing.unit]||[{name:ing.unit,mult:1}];
-    form.mult=units[0].mult; form.displayUnit=units[0].name;
+    form.mult=units[0].mult;form.displayUnit=units[0].name;
     var qI=mkInp({type:'number',placeholder:'เช่น 1, 5'});
     var uSel=mkSel(units.map(function(u){return{label:u.name+' (='+u.mult+' '+ing.unit+')',value:u.mult}}),units[0].mult,function(e){
       form.mult=Number(e.target.value);
       var found=units.find(function(u){return u.mult===Number(e.target.value)});
-      form.displayUnit=found?found.name:''; updatePreview();
+      form.displayUnit=found?found.name:'';updatePreview();
     });
     var pI=mkInp({type:'number',placeholder:'0.00'});
     var preview=el('div',{style:{background:'rgba(16,185,129,.1)',border:'1px solid rgba(16,185,129,.3)',padding:'12px',borderRadius:'12px',flexDirection:'column',gap:'8px',display:'none'}});
     function updatePreview(){
       var base=Number(form.qty||0)*Number(form.mult||1);
-      var newVal=(ing.stock*ing.costPerUnit)+Number(form.totalPrice||0);
-      var newQty=ing.stock+base;
-      var avgCost=newQty>0?newVal/newQty:0;
+      var nv=(ing.stock*ing.costPerUnit)+Number(form.totalPrice||0);
+      var nq=ing.stock+base;var avg=nq>0?nv/nq:0;
       if(form.qty&&form.totalPrice){
-        preview.style.display='flex'; preview.innerHTML='';
-        preview.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.875rem'}},
-          el('span',{txt:'ระบบจะแปลงเข้าสต็อก:',style:{color:'#94a3b8'}}),
-          el('span',{txt:'+'+base+' '+ing.unit,style:{color:'#10b981',fontWeight:700}})
-        ));
-        preview.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end',borderTop:'1px solid rgba(16,185,129,.2)',paddingTop:'8px'}},
-          el('span',{txt:'พรีวิวต้นทุนเฉลี่ยใหม่:',style:{color:'#6ee7b7',fontSize:'.75rem',fontWeight:700}}),
-          el('span',{txt:fmtCost(avgCost)+' / '+ing.unit,style:{color:'#10b981',fontWeight:900,fontSize:'1.4rem'}})
-        ));
-      }else{preview.style.display='none'}
+        preview.style.display='flex';preview.innerHTML='';
+        preview.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.875rem'}},el('span',{txt:'ระบบจะแปลงเข้าสต็อก:',style:{color:'#94a3b8'}}),el('span',{txt:'+'+base+' '+ing.unit,style:{color:'#10b981',fontWeight:700}})));
+        preview.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end',borderTop:'1px solid rgba(16,185,129,.2)',paddingTop:'8px'}},el('span',{txt:'พรีวิวต้นทุนเฉลี่ยใหม่:',style:{color:'#6ee7b7',fontSize:'.75rem',fontWeight:700}}),el('span',{txt:fmtCost(avg)+' / '+ing.unit,style:{color:'#10b981',fontWeight:900,fontSize:'1.4rem'}})));
+      }else preview.style.display='none';
     }
     qI.addEventListener('input',function(e){form.qty=e.target.value;updatePreview()});
     pI.addEventListener('input',function(e){form.totalPrice=e.target.value;updatePreview()});
-    // ✅ FIX 3: ใช้ this.disabled
     var saveBtn=el('button',{cls:'btn btn-emerald',txt:'บันทึกรับเข้า & คำนวณคอส',style:{width:'100%'},onClick:async function(){
       if(!form.ingId||!form.qty||!form.totalPrice)return showToast('กรอกข้อมูลให้ครบ');
       this.disabled=true;
-      var baseQty=Number(form.qty)*Number(form.mult);
-      var rPrice=Number(form.totalPrice);
-      var nq=ing.stock+baseQty;
-      var newCost=nq>0?((ing.stock*ing.costPerUnit)+rPrice)/nq:0;
-      await db.from('ingredients').update({stock:nq,cost_per_unit:newCost}).eq('id',ing.id);
-      await db.from('adjustments').insert([{
-        ing_id:ing.id, ing_name:ing.name, type:'Receive (รับเข้า)', qty:baseQty, unit:ing.unit,
-        reason:'ซื้อมา '+form.qty+' '+form.displayUnit+' ราคา '+rPrice+'บ.'
-      }]);
-      closeModal(); showToast('รับเข้า '+ing.name+' เรียบร้อย');
-      await refreshView();
+      var baseQty=Number(form.qty)*Number(form.mult);var rPrice=Number(form.totalPrice);
+      var nq=ing.stock+baseQty;var newCost=nq>0?((ing.stock*ing.costPerUnit)+rPrice)/nq:0;
+      await _sb.from('ingredients').update({stock:nq,cost_per_unit:newCost}).eq('id',ing.id);
+      await _sb.from('adjustments').insert([{ingredient_id:ing.id,ing_name:ing.name,type:'Receive (รับเข้า)',qty:baseQty,unit:ing.unit,reason:'ซื้อมา '+form.qty+' '+form.displayUnit+' ราคา '+rPrice+'บ.'}]);
+      closeModal();showToast('รับเข้า '+ing.name+' เรียบร้อย');await refreshView();
     }});
     extra.appendChild(el('div',{cls:'grid2',style:{background:'rgba(30,41,59,.3)',padding:'12px',borderRadius:'12px',border:'1px solid rgba(51,65,85,.5)'}},mkField('จำนวนที่ซื้อ *',qI),mkField('หน่วยตอนซื้อ *',uSel)));
     extra.appendChild(mkField('ราคารวมที่จ่ายใบเสร็จ (฿) *',pI));
-    extra.appendChild(preview);
-    extra.appendChild(saveBtn);
+    extra.appendChild(preview);extra.appendChild(saveBtn);
   }
-  container.appendChild(mkField('เลือกวัตถุดิบ *',ingSel));
-  container.appendChild(extra);
+  container.appendChild(mkField('เลือกวัตถุดิบ *',ingSel));container.appendChild(extra);
   openModal('📥 รับของเข้าสต็อก',container);
 }
 
@@ -621,28 +878,25 @@ function renderStockAdj(){
     el('button',{cls:'btn btn-ghost btn-sm',txt:'← กลับ',onClick:function(){navigate('stock')}}),
     el('h2',{txt:'ประวัติสต็อก & ฟอร์มตัดของทิ้ง',style:{color:'#fff',fontWeight:700,margin:0}})
   ));
-
   var form={ingId:'',type:'Damage/Waste',qty:'',mult:1,displayUnit:'',reason:''};
   var formCard=el('div',{cls:'card'});
   formCard.appendChild(el('div',{cls:'card-head',txt:'ฟอร์มตัดสต็อกทิ้ง (Manual)'}));
   var fb=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'16px'}});
-
   var typeEl=mkSel([{label:'Damage/Waste (ของเสีย)',value:'Damage/Waste'},{label:'WIP / R&D (ทดลองสูตร)',value:'WIP / R&D'}],'Damage/Waste',function(e){form.type=e.target.value});
   var ingOpts=[{label:'-- เลือกวัตถุดิบ --',value:''}].concat(state.ingredients.map(function(i){return{label:i.name+' ('+i.stock+' '+i.unit+')',value:i.id}}));
   var extra2=el('div',{});
   var ingSel2=mkSel(ingOpts,'',function(e){form.ingId=e.target.value;buildAdjExtra()});
-
   function buildAdjExtra(){
     extra2.innerHTML='';
     var ing=state.ingredients.find(function(i){return i.id===Number(form.ingId)});
     if(!ing)return;
     var units=UNIT_FAMILIES[ing.unit]||[{name:ing.unit,mult:1}];
-    form.mult=units[0].mult; form.displayUnit=units[0].name;
+    form.mult=units[0].mult;form.displayUnit=units[0].name;
     var qI=mkInp({type:'number',placeholder:'0'});
     var uSel=mkSel(units.map(function(u){return{label:u.name,value:u.mult}}),units[0].mult,function(e){
       form.mult=Number(e.target.value);
       var found=units.find(function(u){return u.mult===Number(e.target.value)});
-      form.displayUnit=found?found.name:''; updateHint();
+      form.displayUnit=found?found.name:'';updateHint();
     });
     var hint=el('p',{style:{color:'#f87171',fontSize:'.75rem',margin:0,display:'none'}});
     function updateHint(){
@@ -653,25 +907,18 @@ function renderStockAdj(){
     extra2.appendChild(el('div',{cls:'grid2'},mkField('จำนวน',qI),mkField('หน่วย',uSel)));
     extra2.appendChild(hint);
   }
-
-  var rsnI=mkInp({placeholder:'หมายเหตุ (ถ้ามี)'}); rsnI.addEventListener('input',function(e){form.reason=e.target.value});
-  // ✅ FIX 3: ใช้ this.disabled
+  var rsnI=mkInp({placeholder:'หมายเหตุ (ถ้ามี)'});rsnI.addEventListener('input',function(e){form.reason=e.target.value});
   var subBtn=el('button',{cls:'btn btn-danger',txt:'ยืนยันการตัดสต็อก',style:{width:'100%'},onClick:async function(){
     if(!form.ingId||!form.qty)return showToast('กรอกข้อมูลให้ครบ');
     this.disabled=true;
     var ing=state.ingredients.find(function(i){return i.id===Number(form.ingId)});
     var baseQty=Number(form.qty)*Number(form.mult);
-    await db.from('ingredients').update({stock:Math.max(0,ing.stock-baseQty)}).eq('id',ing.id);
-    await db.from('adjustments').insert([{
-      ing_id:ing.id, ing_name:ing.name, type:form.type, qty:baseQty, unit:ing.unit,
-      reason:form.reason||('ตัดทิ้ง '+form.qty+' '+form.displayUnit)
-    }]);
-    showToast('ตัดสต็อก '+ing.name+' ทิ้งแล้ว');
-    await refreshView();
+    await _sb.from('ingredients').update({stock:Math.max(0,ing.stock-baseQty)}).eq('id',ing.id);
+    await _sb.from('adjustments').insert([{ingredient_id:ing.id,ing_name:ing.name,type:form.type,qty:baseQty,unit:ing.unit,reason:form.reason||('ตัดทิ้ง '+form.qty+' '+form.displayUnit)}]);
+    showToast('ตัดสต็อก '+ing.name+' ทิ้งแล้ว');await refreshView();
   }});
   fb.append(mkField('ประเภท',typeEl),mkField('เลือกวัตถุดิบ',ingSel2),extra2,mkField('หมายเหตุ',rsnI),subBtn);
   formCard.appendChild(fb);
-
   var logCard=el('div',{cls:'card'});
   logCard.appendChild(el('div',{cls:'card-head',txt:'Log การปรับ/รับเข้า'}));
   if(state.adjustments.length===0){
@@ -694,7 +941,7 @@ function renderStockAdj(){
     logCard.appendChild(sw);
   }
   var grid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:'16px'}});
-  grid.append(formCard,logCard); wrap.appendChild(grid);
+  grid.append(formCard,logCard);wrap.appendChild(grid);
   return wrap;
 }
 
@@ -715,20 +962,17 @@ function renderRecipe(){
       el('p',{txt:'ราคาขาย: '+fmtCost(r.price)+' | ต้นทุน: '+fmtCost(calcRecipeCost(r.lines,state.ingredients)),style:{color:'#94a3b8',fontSize:'.75rem',margin:0}})
     ));
   });
-  listCard.appendChild(lb); wrap.appendChild(listCard);
-
+  listCard.appendChild(lb);wrap.appendChild(listCard);
   var recipe=state.recipes.find(function(r){return r.id===state.selectedRecipeId});
   if(!recipe){
     wrap.appendChild(el('div',{style:{textAlign:'center',color:'#475569',padding:'32px',border:'1px solid #1e293b',borderRadius:'16px'},txt:'เลือกเมนูเพื่อดูสูตร หรือเพิ่มเมนูใหม่'}));
     return wrap;
   }
-
   var cost=calcRecipeCost(recipe.lines,state.ingredients);
   wrap.appendChild(el('div',{style:{background:'rgba(245,158,11,.08)',border:'1px solid rgba(245,158,11,.3)',borderRadius:'16px',padding:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
     el('div',{},el('p',{txt:'สูตรสำหรับเมนู',style:{color:'#f59e0b',fontSize:'.75rem',margin:'0 0 4px'}}),el('p',{txt:recipe.name,style:{color:'#fff',fontSize:'1.25rem',fontWeight:900,margin:0}})),
     el('div',{style:{textAlign:'right'}},el('p',{txt:'Food Cost / แก้ว',style:{color:'#94a3b8',fontSize:'.75rem',margin:'0 0 4px'}}),el('p',{txt:fmtCost(cost),style:{color:'#f59e0b',fontSize:'1.5rem',fontWeight:900,margin:0}}))
   ));
-
   var ingCard=el('div',{cls:'card'});
   ingCard.appendChild(el('div',{cls:'card-head'},el('span',{txt:'วัตถุดิบในสูตร (หน่วยฐาน)'}),el('button',{cls:'btn btn-primary btn-sm',txt:'+  เพิ่มวัตถุดิบ',onClick:function(){openModalAddIngToRecipe(recipe)}})));
   var sw2=el('div',{style:{overflowX:'auto'}});
@@ -739,13 +983,13 @@ function renderRecipe(){
     var qI=el('input',{type:'number',style:{width:'72px',background:'#1e293b',border:'1px solid #334155',borderRadius:'6px',padding:'4px 8px',color:'#fff',fontSize:'.875rem'}});
     qI.value=line.qty;
     qI.addEventListener('change',async function(e){
-      await db.from('recipe_lines').update({qty:Number(e.target.value)}).eq('recipe_id',recipe.id).eq('ing_id',ing.id);
+      await _sb.from('recipe_lines').update({qty:Number(e.target.value)}).eq('recipe_id',recipe.id).eq('ingredient_id',ing.id);
       await refreshView();
     });
     var delBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#475569',padding:'8px',fontSize:'1rem'},
       onMouseover:function(){this.style.color='#f87171'},onMouseout:function(){this.style.color='#475569'},
       onClick:async function(){
-        await db.from('recipe_lines').delete().eq('recipe_id',recipe.id).eq('ing_id',ing.id);
+        await _sb.from('recipe_lines').delete().eq('recipe_id',recipe.id).eq('ingredient_id',ing.id);
         await refreshView();
       }
     });
@@ -760,22 +1004,20 @@ function renderRecipe(){
     el('thead',{},el('tr',{},el('th',{txt:'วัตถุดิบ'}),el('th',{txt:'ปริมาณใช้/แก้ว'}),el('th',{txt:'ต้นทุนย่อย',style:{textAlign:'right'}}),el('th',{}))),
     tbody3
   ));
-  ingCard.appendChild(sw2); wrap.appendChild(ingCard);
+  ingCard.appendChild(sw2);wrap.appendChild(ingCard);
   return wrap;
 }
 
 function openModalNewRecipe(){
   var form={name:'',price:''};
-  var nI=mkInp({placeholder:'ชื่อเมนู'}); nI.addEventListener('input',function(e){form.name=e.target.value});
-  var pI=mkInp({type:'number',placeholder:'0'}); pI.addEventListener('input',function(e){form.price=e.target.value});
-  // ✅ FIX 3: ใช้ this.disabled
+  var nI=mkInp({placeholder:'ชื่อเมนู'});nI.addEventListener('input',function(e){form.name=e.target.value});
+  var pI=mkInp({type:'number',placeholder:'0'});pI.addEventListener('input',function(e){form.price=e.target.value});
   var btn=el('button',{cls:'btn btn-primary',txt:'ยืนยันสร้างเมนูบน Cloud',style:{width:'100%'},onClick:async function(){
     if(!form.name)return;
     this.disabled=true;
-    var result=await db.from('recipes').insert([{name:form.name,price:Number(form.price||0)}]).select();
+    var result=await _sb.from('recipes').insert([{name:form.name,price:Number(form.price||0)}]).select();
     if(result.data&&result.data.length>0)state.selectedRecipeId=result.data[0].id;
-    closeModal(); showToast('สร้างเมนูใหม่แล้ว');
-    await refreshView();
+    closeModal();showToast('สร้างเมนูใหม่แล้ว');await refreshView();
   }});
   openModal('สร้างเมนูใหม่',el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}},mkField('ชื่อเมนู',nI),mkField('ราคาขาย (฿)',pI),btn));
 }
@@ -789,13 +1031,101 @@ function openModalAddIngToRecipe(recipe){
       style:{padding:'12px',background:'#1e293b',borderRadius:'12px',border:'none',cursor:'pointer',color:'#fff',fontWeight:600,textAlign:'left',width:'100%',transition:'background .15s'},
       onMouseover:function(){btn.style.background='#293548'},onMouseout:function(){btn.style.background='#1e293b'},
       onClick:async function(){
-        await db.from('recipe_lines').insert([{recipe_id:recipe.id,ing_id:ing.id,qty:1}]);
-        closeModal(); await refreshView();
+        await _sb.from('recipe_lines').insert([{recipe_id:recipe.id,ingredient_id:ing.id,qty:1}]);
+        closeModal();await refreshView();
       }
     },ing.name+' ',el('span',{txt:'('+fmtCost(ing.costPerUnit)+'/'+ing.unit+')',style:{color:'#94a3b8',fontWeight:400,fontSize:'.75rem'}}));
     list.appendChild(btn);
   });
   openModal('เลือกวัตถุดิบเข้าสูตร',list);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SPRINT 5 · PART 3 ── SETTINGS PAGE ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderSettings(){
+  var s=state.settings;
+  var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px',maxWidth:'600px'}});
+
+  // ── Shop info form ────────────────────────────────────────
+  var shopCard=el('div',{cls:'card'});
+  shopCard.appendChild(el('div',{cls:'card-head',txt:'🏪 ข้อมูลร้านและใบเสร็จ'}));
+  var fb=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'14px'}});
+
+  var nameI=mkInp({placeholder:'ชาไทยอร่อยดี',value:s.shopName});
+  var logoI=mkInp({placeholder:'https://... (URL รูปโลโก้)',value:s.logoUrl});
+  var addrTA=document.createElement('textarea');
+  addrTA.className='inp';addrTA.rows=3;addrTA.placeholder='ที่อยู่ร้าน\nเบอร์โทร';addrTA.value=s.address;
+  var footerTA=document.createElement('textarea');
+  footerTA.className='inp';footerTA.rows=3;footerTA.placeholder='ข้อความท้ายใบเสร็จ';footerTA.value=s.receiptFooter;
+
+  // Paper size toggle
+  var paperSel=mkSel([{label:'80mm (ทั่วไป)',value:'80mm'},{label:'58mm (มือถือ/เล็ก)',value:'58mm'}],s.paperSize,function(e){
+    // Update @page size in print style dynamically
+    s.paperSize=e.target.value;
+  });
+
+  // Auto-print toggle
+  var autoLbl=el('label',{style:{display:'flex',alignItems:'center',gap:'10px',cursor:'pointer'}});
+  var autoChk=document.createElement('input');autoChk.type='checkbox';autoChk.checked=s.printOnCheckout;
+  autoChk.style.width='18px';autoChk.style.height='18px';autoChk.style.accentColor='#f59e0b';
+  autoLbl.appendChild(autoChk);
+  autoLbl.appendChild(el('span',{txt:'พิมพ์ใบเสร็จอัตโนมัติหลัง Checkout',style:{color:'#cbd5e1',fontSize:'.875rem'}}));
+
+  var saveBtn=el('button',{cls:'btn btn-primary',txt:'💾 บันทึกการตั้งค่า',style:{width:'100%'},onClick:function(){
+    state.settings.shopName=nameI.value.trim()||DEFAULT_SETTINGS.shopName;
+    state.settings.logoUrl=logoI.value.trim();
+    state.settings.address=addrTA.value.trim();
+    state.settings.receiptFooter=footerTA.value.trim();
+    state.settings.printOnCheckout=autoChk.checked;
+    state.settings.paperSize=paperSel.value;
+    saveSettings(state.settings);
+    showToast('✓ บันทึกการตั้งค่าแล้ว (localStorage)');
+  }});
+
+  fb.appendChild(mkField('ชื่อร้าน',nameI));
+  fb.appendChild(mkField('URL โลโก้ (ถ้ามี)',logoI));
+  fb.appendChild(mkField('ที่อยู่ / เบอร์โทร',addrTA));
+  fb.appendChild(mkField('ข้อความท้ายใบเสร็จ (Footer)',footerTA));
+  fb.appendChild(el('div',{cls:'grid2'},mkField('ขนาดกระดาษ',paperSel),el('div',{style:{paddingTop:'22px'}},autoLbl)));
+  fb.appendChild(saveBtn);
+  shopCard.appendChild(fb);
+  wrap.appendChild(shopCard);
+
+  // ── Preview & Test Print ──────────────────────────────────
+  var previewCard=el('div',{cls:'card'});
+  previewCard.appendChild(el('div',{cls:'card-head',txt:'🧾 ทดสอบพิมพ์'}));
+  var pb=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'12px'}});
+  pb.appendChild(el('p',{txt:'กด "ทดสอบใบเสร็จ" เพื่อดูหน้าตาใบเสร็จก่อนใช้จริง',style:{color:'#94a3b8',fontSize:'.875rem',margin:0}}));
+  var testBtns=el('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}});
+  testBtns.appendChild(el('button',{cls:'btn btn-ghost',txt:'🖨️ ทดสอบใบเสร็จ',onClick:function(){
+    printReceipt({
+      type:'storefront',
+      items:'ชาไทยเย็น x2, กาแฟเย็น x1',
+      gross:135,net:135,cogs:20,gpPercent:0,adsDiscount:0
+    });
+  }}));
+  testBtns.appendChild(el('button',{cls:'btn btn-ghost',txt:'🍹 ทดสอบใบ KOT',onClick:function(){
+    printKOT({type:'storefront',items:'ชาไทยเย็น x2, กาแฟเย็น x1'});
+  }}));
+  pb.appendChild(testBtns);
+
+  // receipt preview box (inline mock)
+  var mockBox=el('div',{style:{background:'#fff',color:'#000',borderRadius:'8px',padding:'16px',fontFamily:"'Courier New',monospace",fontSize:'11px',maxWidth:'280px',lineHeight:'1.6',marginTop:'4px'}});
+  mockBox.innerHTML='<div style="text-align:center;font-weight:700;font-size:14px">'+escHtml(s.shopName)+'</div>'
+    +'<div style="text-align:center;font-size:10px;margin-bottom:6px">'+escHtml(s.address).replace(/\n/g,'<br>')+'</div>'
+    +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
+    +'<div style="display:flex;justify-content:space-between"><span>ชาไทยเย็น x2</span><span>฿90</span></div>'
+    +'<div style="display:flex;justify-content:space-between"><span>กาแฟเย็น x1</span><span>฿45</span></div>'
+    +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
+    +'<div style="display:flex;justify-content:space-between;font-weight:700"><span>ยอดรับสุทธิ</span><span>฿135</span></div>'
+    +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
+    +'<div style="text-align:center;font-size:10px">'+escHtml(s.receiptFooter).replace(/\n/g,'<br>')+'</div>';
+  pb.appendChild(el('div',{style:{marginTop:'4px'}},el('p',{txt:'ตัวอย่างใบเสร็จ:',style:{color:'#64748b',fontSize:'.75rem',marginBottom:'6px'}}),mockBox));
+
+  previewCard.appendChild(pb);
+  wrap.appendChild(previewCard);
+  return wrap;
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
