@@ -193,9 +193,9 @@ var ALL_PAGES = [
 // LOGIN & BOOT
 // ═══════════════════════════════════════════════════════
 var _pin = '';
-function numpad(d){if(_pin.length>=4)return;_pin+=String(d);updatePinDisplay();if(_pin.length===4)setTimeout(tryLogin,80)}
-function numpadBack(){_pin=_pin.slice(0,-1);updatePinDisplay()}
-function numpadClear(){_pin='';updatePinDisplay();document.getElementById('login-err').textContent=''}
+window.numpad = function numpad(d){if(_pin.length>=4)return;_pin+=String(d);updatePinDisplay();if(_pin.length===4)setTimeout(tryLogin,80)}
+window.numpadBack = function numpadBack(){_pin=_pin.slice(0,-1);updatePinDisplay()}
+window.numpadClear = function numpadClear(){_pin='';updatePinDisplay();document.getElementById('login-err').textContent=''}
 function updatePinDisplay(){for(var i=0;i<4;i++){var dot=document.getElementById('pd'+i);if(dot)dot.classList.toggle('filled',i<_pin.length)}}
 
 async function tryLogin() {
@@ -219,12 +219,21 @@ async function tryLogin() {
     }
   } catch(e) { _pin = ''; updatePinDisplay(); document.getElementById('login-err').textContent = 'ไม่สามารถเชื่อมต่อ Cloud ได้'; }
 }
-function doLogout() {
+window.doLogout = function doLogout() {
   if (!confirm('ออกจากระบบใช่ไหม?')) return;
   state.currentStaff=null;state.cart=[];state.currentMember=null;state.memberSearchPhone='';state.memberNotFound=false;state.pointsToUse=0;state.extraDiscount=0;state.extraDiscountReason='';state.showDiscountForm=false;state.paymentMethod='cash';
   document.getElementById('app').style.display = 'none'; document.getElementById('login-screen').style.display = 'flex'; _pin = ''; updatePinDisplay(); document.getElementById('login-err').textContent = '';
 }
 
+
+function exportOrdersCSV(){
+  if(!state.orders.length)return showToast('ไม่มีข้อมูล','#e11d48');
+  var hdr=['วันที่','เวลา','ประเภท','ชำระ','รายการ','Gross','Net','COGS','Profit','แต้มได้','แต้มใช้','ส่วนลด'];
+  var rows=state.orders.map(function(o){return[o.dateStr,o.time,o.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่',payLabel(o.paymentMethod),'"'+o.items.replace(/"/g,'""')+'"',o.gross||0,o.net||o.total||0,o.cogs||0,(o.net||o.total||0)-(o.cogs||0),o.pointsEarned||0,o.pointsUsed||0,o.discountAmount||0].join(',')});
+  var csv='\uFEFF'+hdr.join(',')+"\n"+rows.join("\n");
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='ยอดขาย_'+Date.now()+'.csv';a.click();
+  showToast('✓ Export CSV สำเร็จ');
+}
 async function fetchCloudData() {
   var isAdmin = state.currentStaff && state.currentStaff.role === 'admin';
   var baseQueries = [
@@ -414,6 +423,30 @@ function renderDashboard() {
     });
     bsCard.appendChild(bsBody); wrap.appendChild(bsCard);
   }
+
+  // History table  
+  var histCard=el('div',{cls:'card'});
+  var histHead=el('div',{cls:'card-head'});
+  histHead.appendChild(el('span',{txt:'ประวัติการขาย ('+orders.length+' บิล)'}));
+  histHead.appendChild(el('button',{cls:'btn btn-ghost btn-sm',txt:'📥 Export CSV',onClick:exportOrdersCSV}));
+  histCard.appendChild(histHead);
+  if(orders.length){
+    var hw=el('div',{style:{overflowX:'auto'}});var htb=el('tbody',{});
+    orders.slice(0,50).forEach(function(o){
+      var rpBtn=el('button',{cls:'btn btn-ghost btn-sm',txt:'🖨️',title:'Reprint',onClick:function(){printReceipt(o)}});
+      htb.appendChild(el('tr',{},
+        el('td',{style:{fontSize:'.8rem',color:'var(--text-muted)',whiteSpace:'nowrap'}},el('span',{txt:o.dateStr}),el('br',{}),el('span',{txt:o.time})),
+        el('td',{},el('span',{cls:'badge '+(o.type==='storefront'?'badge-amber':'badge-rose'),txt:o.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่'})),
+        el('td',{},el('span',{cls:'badge badge-slate',txt:payLabel(o.paymentMethod)})),
+        el('td',{txt:o.items,style:{maxWidth:'200px',whiteSpace:'normal',wordBreak:'break-word',fontSize:'.8rem'}}),
+        el('td',{txt:fmtDisplay(o.net||o.total||0),style:{textAlign:'right',fontWeight:800}}),
+        el('td',{style:{textAlign:'center'}},rpBtn)
+      ));
+    });
+    hw.appendChild(el('table',{},el('thead',{},el('tr',{},el('th',{txt:'เวลา'}),el('th',{txt:'ช่องทาง'}),el('th',{txt:'ชำระ'}),el('th',{txt:'รายการ'}),el('th',{txt:'Net',style:{textAlign:'right'}}),el('th',{}))),htb));
+    histCard.appendChild(hw);
+  }else histCard.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีออเดอร์',style:{textAlign:'center',color:'var(--text-muted)',margin:0}})));
+  wrap.appendChild(histCard);
   return wrap;
 }
 
@@ -525,7 +558,7 @@ function renderPOS() {
     ));
   }
 
-  var toggle=el('div',{style:{display:'flex',gap:'8px',background:var('--card-bg'),padding:'8px',borderRadius:'16px',border:'1px solid var(--border-color)',boxShadow:'0 2px 4px rgba(0,0,0,.02)'}});
+  var toggle=el('div',{style:{display:'flex',gap:'8px',background:'var(--card-bg)',padding:'8px',borderRadius:'16px',border:'1px solid var(--border-color)',boxShadow:'0 2px 4px rgba(0,0,0,.02)'}});
   ['storefront','delivery'].forEach(type=>{
     var active=s.orderType===type;
     toggle.appendChild(el('button',{txt:type==='storefront'?'🏠 หน้าร้าน':'🛵 เดลิเวอรี่',style:{flex:1,padding:'14px',borderRadius:'12px',border:'none',cursor:'pointer',fontWeight:800,background:active?(type==='storefront'?'var(--accent-gold)':'#f97316'):'transparent',color:active?'#fff':'var(--text-muted)',transition:'all .15s'},onClick:()=>{
@@ -641,12 +674,15 @@ function renderPOS() {
         var newPts=Math.max(0,state.currentMember.points+pointsEarned-state.pointsToUse);
         await _sb.from('members').update({points:newPts,total_spent:(state.currentMember.total_spent||0)+netRevenue}).eq('id',state.currentMember.id);
       }
-      state.cart=[];state.extraDiscount=0;state.extraDiscountReason='';state.pointsToUse=0;state.currentMember=null;state.showDiscountForm=false;
+      var snap={type:state.orderType,items:state.cart.map(i=>i.name+' x'+i.qty).join(', '),gross:grossTotal,net:netRevenue,total:netRevenue,gpPercent:state.gpPercent,paymentMethod:state.paymentMethod,staffName:state.currentStaff?state.currentStaff.name:null,memberName:state.currentMember?state.currentMember.name:null,pointsEarned:pointsEarned,pointsUsed:state.pointsToUse,memberPoints:state.currentMember?Math.max(0,state.currentMember.points+pointsEarned-state.pointsToUse):null,discountAmount:state.extraDiscount,discountReason:state.extraDiscountReason};
+      state.cart=[];state.extraDiscount=0;state.extraDiscountReason='';state.pointsToUse=0;state.currentMember=null;state.memberSearchPhone='';state.memberNotFound=false;state.showDiscountForm=false;
+      if(state.settings.printOnCheckout)printReceipt(snap);
       showToast('✓ บันทึกสำเร็จ!');await refreshView();
     } catch(err) { alert('Error: '+err.message); this.disabled=false; this.textContent='✅ ยืนยันคำสั่งซื้อ'; }
   }});
   if(!s.cart.length){ckBtn.disabled=true;ckBtn.style.background='#e2e8f0';ckBtn.style.color='#94a3b8';ckBtn.style.boxShadow='none'}
   footer.appendChild(ckBtn);
+  if(s.cart.length>0){footer.appendChild(el('button',{cls:'btn btn-ghost',txt:'🍹 พิมพ์ KOT (บาร์)',style:{width:'100%',marginTop:'-6px'},onClick:function(){printKOT({type:state.orderType,items:state.cart.map(i=>i.name+' x'+i.qty).join(', ')})}}))} 
   cartCard.appendChild(footer); 
   
   rightCol.appendChild(cartCard);
@@ -670,9 +706,9 @@ function renderShift(){
     var shiftOrders=state.orders.filter(o=>o.shiftId===cs.id);
     var pmTotals={cash:0,qr:0,card:0,delivery_credit:0};
     shiftOrders.forEach(o=>{if(pmTotals[o.paymentMethod]!==undefined)pmTotals[o.paymentMethod]+=o.net});
-    var expectedCash=Number(cs.opening_cash||0)+pmTotals.cash;
+    var expectedCash=Number(cs.openingCash||0)+pmTotals.cash;
 
-    sb.appendChild(el('div',{cls:'shift-banner shift-open'},el('span',{txt:'🟢 กำลังเปิดกะ'}),el('span',{txt:'เปิดเมื่อ '+fmtDateTime(cs.opened_at),style:{fontWeight:600,fontSize:'.75rem'}})));
+    sb.appendChild(el('div',{cls:'shift-banner shift-open'},el('span',{txt:'🟢 กำลังเปิดกะ'}),el('span',{txt:'เปิดเมื่อ '+fmtDateTime(cs.openedAt),style:{fontWeight:600,fontSize:'.75rem'}})));
     var sumBox=el('div',{style:{background:'#f8fafc',border:'1px solid var(--border-color)',borderRadius:'12px',padding:'16px',display:'flex',flexDirection:'column',gap:'12px'}});
     sumBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',borderBottom:'1px solid var(--border-color)',paddingBottom:'8px'}},el('span',{txt:'ยอดขายรวม ('+shiftOrders.length+' บิล)',style:{fontWeight:700}}),el('span',{txt:fmtDisplay(shiftOrders.reduce((s,o)=>s+o.net,0)),style:{fontWeight:900,color:'var(--accent-gold)',fontSize:'1.1rem'}})));
     Object.keys(pmTotals).forEach(pmKey=>{if(pmTotals[pmKey]>0||pmKey==='cash')sumBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.875rem',fontWeight:600}},el('span',{txt:payLabel(pmKey),style:{color:'var(--text-muted)'}}),el('span',{txt:fmtDisplay(pmTotals[pmKey]),style:{color:'var(--text-main)'}})))});
@@ -688,7 +724,7 @@ function renderShift(){
     closeBox.appendChild(diffPreview);
     closeBox.appendChild(el('button',{cls:'btn btn-danger',txt:'🔒 ยืนยันปิดกะ',style:{width:'100%',fontSize:'1.1rem',padding:'12px'},onClick:async function(){
       if(!actualI.value)return showToast('กรุณากรอกยอดเงินจริง');this.disabled=true;
-      await _sb.from('shifts').update({status:'closed',closed_at:new Date().toISOString(),closing_cash:Number(actualI.value),expected_cash:expectedCash,cash_diff:Number(actualI.value)-expectedCash}).eq('id',cs.id);
+      await _sb.from('shifts').update({status:'closed',closed_at:new Date().toISOString(),closing_cash:Number(actualI.value),expected_cash:expectedCash}).eq('id',cs.id);
       showToast('✓ ปิดกะเรียบร้อย');await refreshView();
     }}));
     sb.appendChild(closeBox);
@@ -828,7 +864,7 @@ function renderRecipe(){
     
     var rightWrap=el('div',{style:{flex:1, display:'flex', flexDirection:'column', gap:'20px'}});
     var recipe=state.recipes.find(r=>r.id===state.selectedRecipeId);
-    if(!recipe){ rightWrap.appendChild(el('div',{style:{textAlign:'center',color:'var(--text-muted)',padding:'60px',border:'1px dashed var(--border-color)',borderRadius:'16px',fontWeight:700}},txt:'👈 เลือกเมนูทางซ้ายเพื่อจัดการ')); layout.appendChild(rightWrap); wrap.appendChild(layout); return wrap; }
+    if(!recipe){ rightWrap.appendChild(el('div',{style:{textAlign:'center',color:'var(--text-muted)',padding:'60px',border:'1px dashed var(--border-color)',borderRadius:'16px',fontWeight:700},txt:'👈 เลือกเมนูทางซ้ายเพื่อจัดการ'})); layout.appendChild(rightWrap); wrap.appendChild(layout); return wrap; }
     
     var cost=calcRecipeCost(recipe.lines,state.ingredients);
     
@@ -867,7 +903,7 @@ function renderRecipe(){
     
     var rightWrap=el('div',{style:{flex:1, display:'flex', flexDirection:'column', gap:'20px'}});
     var selWip=state.ingredients.find(i=>i.id===state.selectedWipId);
-    if(!selWip){ rightWrap.appendChild(el('div',{style:{textAlign:'center',color:'var(--text-muted)',padding:'60px',border:'1px dashed var(--border-color)',borderRadius:'16px',fontWeight:700}},txt:'👈 เลือกเบสทางซ้ายเพื่อจัดการสูตร')); layout.appendChild(rightWrap); wrap.appendChild(layout); return wrap; }
+    if(!selWip){ rightWrap.appendChild(el('div',{style:{textAlign:'center',color:'var(--text-muted)',padding:'60px',border:'1px dashed var(--border-color)',borderRadius:'16px',fontWeight:700},txt:'👈 เลือกเบสทางซ้ายเพื่อจัดการสูตร'})); layout.appendChild(rightWrap); wrap.appendChild(layout); return wrap; }
     
     var fCard=el('div',{cls:'card', style:{borderColor:'#ede9fe',boxShadow:'0 4px 20px rgba(139,92,246,.05)'}});
     fCard.appendChild(el('div',{cls:'card-head',style:{background:'#f5f3ff'}},el('span',{txt:'📋 สูตรของ: '+selWip.name,style:{color:'#4f46e5',fontSize:'1.1rem'}}),el('button',{cls:'btn btn-ghost btn-sm',txt:'+ เพิ่มวัตถุดิบ',style:{background:'#fff',border:'1px solid #ddd6fe'},onClick:()=>openModalAddRawToWIP(selWip)})));
@@ -904,6 +940,34 @@ function renderRecipe(){
   return wrap;
 }
 
+
+// ═══════════════════════════════════════════════════════
+// STOCK ADJ
+// ═══════════════════════════════════════════════════════
+function renderStockAdj(){
+  var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'20px'}});
+  wrap.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'4px'}},
+    el('button',{cls:'btn btn-ghost btn-sm',txt:'← กลับสต็อก',onClick:function(){navigate('stock')}}),
+    el('h2',{txt:'ประวัติการปรับสต็อก',style:{color:'var(--text-main)',fontWeight:800,margin:0}})
+  ));
+  var histCard=el('div',{cls:'card'});
+  histCard.appendChild(el('div',{cls:'card-head',txt:'📋 รายการปรับสต็อกทั้งหมด'}));
+  if(state.adjustments.length){
+    var sw=el('div',{style:{overflowX:'auto'}});var tb=el('tbody',{});
+    state.adjustments.forEach(function(a){
+      tb.appendChild(el('tr',{},
+        el('td',{txt:a.date,style:{color:'var(--text-muted)',whiteSpace:'nowrap',fontSize:'.875rem'}}),
+        el('td',{txt:a.ingName,style:{fontWeight:700}}),
+        el('td',{},el('span',{cls:'badge badge-slate',txt:a.type})),
+        el('td',{txt:a.qty+' '+a.unit}),
+        el('td',{txt:a.reason||'-',style:{color:'var(--text-muted)',fontSize:'.875rem'}})
+      ));
+    });
+    sw.appendChild(el('table',{},el('thead',{},el('tr',{},el('th',{txt:'วันที่'}),el('th',{txt:'รายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'ปริมาณ'}),el('th',{txt:'หมายเหตุ'}))),tb));
+    histCard.appendChild(sw);
+  }else{histCard.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีประวัติ',style:{textAlign:'center',color:'var(--text-muted)',margin:0}})))}
+  wrap.appendChild(histCard);return wrap;
+}
 function openModalNewRecipe(){
   var form={name:'',price:''};
   var nI=mkInp({placeholder:'ชื่อเมนู'});nI.addEventListener('input',e=>form.name=e.target.value);
@@ -993,10 +1057,59 @@ function openModalProduceWIP(forceWipId) {
     extra.appendChild(el('p',{txt:'*ระบบจะตัดวัตถุดิบและคำนวณต้นทุนถัวเฉลี่ยให้อัตโนมัติ',style:{color:'var(--text-muted)',fontSize:'.75rem',margin:0,textAlign:'center'}}));
     extra.appendChild(cBtn);
   }
-  if(forceWipId){ wrap.appendChild(el('p',{txt:'ผลิตเบส: '+state.ingredients.find(i=>i.id===forceWipId).name,style:{fontWeight:800,color:'var(--text-main)',fontSize:'1.1rem'}})); renderProdExtra(); wrap.appendChild(extra); }
+  if(forceWipId){ 
+    wrap.appendChild(el('p',{txt:'ผลิตเบส: '+state.ingredients.find(i=>i.id===forceWipId).name,style:{fontWeight:800,color:'var(--text-main)',fontSize:'1.1rem'}})); 
+    renderProdExtra(); 
+    wrap.appendChild(extra); 
+  } else {
+    var wipOpts=[{label:'-- เลือกเบส --',value:''}].concat(state.ingredients.filter(i=>i.type==='WIP/เบส').map(i=>({label:i.name,value:i.id})));
+    var wipSel=mkSel(wipOpts,form.wipId,function(e){form.wipId=e.target.value;renderProdExtra();});
+    wrap.appendChild(mkField('เลือกเบส',wipSel));
+    wrap.appendChild(extra);
+  }
   openModal('🍳 ผลิตเบสเข้าสต็อก', wrap);
 }
 
+
+// ═══════════════════════════════════════════════════════
+// RECEIPT
+// ═══════════════════════════════════════════════════════
+function genOrderNo(){return '#'+Date.now().toString().slice(-6)}
+function escHtmlR(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function buildReceipt(orderData){
+  var s=state.settings;var html='';
+  if(s.logoUrl)html+='<div style="text-align:center;margin-bottom:6px"><img src="'+s.logoUrl+'" style="max-width:60px;max-height:60px;object-fit:contain"/></div>';
+  html+='<div class="rcpt-shop-name">'+escHtmlR(s.shopName)+'</div>';
+  html+='<div class="rcpt-addr">'+escHtmlR(s.address).replace(/\n/g,'<br>')+'</div>';
+  html+='<hr class="rcpt-divider">';
+  html+='<div class="rcpt-order-no">ออเดอร์ '+genOrderNo()+'</div>';
+  html+='<div class="rcpt-row"><span>'+(orderData.dateStr?orderData.dateStr+' '+orderData.time:new Date().toLocaleString('th-TH'))+'</span><span>'+(orderData.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่')+'</span></div>';
+  html+='<div class="rcpt-row"><span>ชำระ:</span><span>'+payLabel(orderData.paymentMethod||'cash')+'</span></div>';
+  if(orderData.staffName)html+='<div class="rcpt-row"><span>พนักงาน:</span><span>'+escHtmlR(orderData.staffName)+'</span></div>';
+  if(orderData.memberName)html+='<div class="rcpt-row"><span>สมาชิก:</span><span>'+escHtmlR(orderData.memberName)+'</span></div>';
+  html+='<hr class="rcpt-divider">';
+  parseOrderItems(orderData.items).forEach(function(it){html+='<div class="rcpt-row"><span>'+escHtmlR(it.name)+' x'+it.qty+'</span><span></span></div>'});
+  html+='<hr class="rcpt-divider">';
+  html+='<div class="rcpt-row"><span>ยอดก่อนหัก</span><span>'+fmtDisplay(orderData.gross||0)+'</span></div>';
+  if(orderData.type==='delivery'&&(orderData.gpPercent||0)>0){html+='<div class="rcpt-row"><span>หัก GP ('+orderData.gpPercent+'%)</span><span>-'+fmtDisplay((orderData.gross||0)*((orderData.gpPercent||0)/100))+'</span></div>'}
+  if((orderData.pointsUsed||0)>0)html+='<div class="rcpt-row"><span>แลกแต้ม ('+orderData.pointsUsed+' แต้ม)</span><span>-'+fmtDisplay(orderData.pointsUsed)+'</span></div>';
+  if((orderData.discountAmount||0)>0)html+='<div class="rcpt-row"><span>ส่วนลด'+(orderData.discountReason?' ('+escHtmlR(orderData.discountReason)+')':'')+'</span><span>-'+fmtDisplay(orderData.discountAmount)+'</span></div>';
+  html+='<div class="rcpt-row bold"><span>ยอดชำระสุทธิ</span><span>'+fmtDisplay(orderData.net||orderData.total||0)+'</span></div>';
+  html+='<hr class="rcpt-divider">';
+  if((orderData.pointsEarned||0)>0)html+='<div class="rcpt-row"><span>🌟 แต้มที่ได้รับ</span><span>+'+orderData.pointsEarned+' แต้ม</span></div>';
+  if(orderData.memberPoints!=null)html+='<div class="rcpt-row"><span>แต้มสะสมทั้งหมด</span><span>'+orderData.memberPoints+' แต้ม</span></div>';
+  html+='<div class="rcpt-center">'+escHtmlR(s.receiptFooter).replace(/\n/g,'<br>')+'</div>';
+  document.getElementById('receipt-print-area').innerHTML=html;
+}
+function buildKOT(orderData){
+  var html='<div class="kot-title">KOT '+genOrderNo()+'</div>';
+  html+='<div style="text-align:center;font-size:11px;margin-bottom:8px">'+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' — '+(orderData.type==='storefront'?'หน้าร้าน':'เดลิเวอรี่')+'</div>';
+  html+='<hr class="rcpt-divider">';
+  parseOrderItems(orderData.items).forEach(function(it){html+='<div class="kot-item">'+it.qty+' × '+escHtmlR(it.name)+'</div>'});
+  document.getElementById('receipt-print-area').innerHTML=html;
+}
+function printReceipt(orderData){buildReceipt(orderData);setTimeout(function(){window.print()},120)}
+function printKOT(orderData){buildKOT(orderData);setTimeout(function(){window.print()},120)}
 // ═══════════════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════════════
