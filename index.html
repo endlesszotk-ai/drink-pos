@@ -540,7 +540,7 @@ async function checkoutLogic(e,grossTotal,netRevenue){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SHIFT MANAGEMENT (Fixed totals calculation)
+// SHIFT MANAGEMENT (Fixed totals + Cash Calculator)
 // ═══════════════════════════════════════════════════════════════════════════════
 function renderShift(){
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
@@ -548,62 +548,72 @@ function renderShift(){
   shiftCard.appendChild(el('div',{cls:'card-head',txt:'🔄 รอบการขาย (Shift)'}));
   var sb=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'14px'}});
 
+  // 🧮 Helper: เครื่องมือช่วยแตกแบงค์และเหรียญ
+  function makeCashCounter(targetInp, onChange){
+    var box=el('div',{style:{display:'none',gridTemplateColumns:'1fr 1fr',gap:'8px',background:'rgba(0,0,0,.3)',padding:'12px',borderRadius:'8px',marginTop:'4px'}});
+    var denoms=[1000,500,100,50,20,10,5,2,1];
+    var inps={};
+    function calc(){
+      var sum=0; denoms.forEach(d=>{sum+=d*Number(inps[d].value||0)});
+      targetInp.value=sum; if(onChange)onChange();
+    }
+    denoms.forEach(d=>{
+      var row=el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}});
+      row.appendChild(el('span',{txt:(d>=20?'แบงค์ ':'เหรียญ ')+d,style:{color:'#94a3b8',fontSize:'.75rem',width:'50px'}}));
+      var i=mkInp({type:'number',placeholder:'0',style:{padding:'4px 8px'}});
+      i.addEventListener('input',calc);
+      inps[d]=i; row.appendChild(i); box.appendChild(row);
+    });
+    var toggleBtn=el('button',{cls:'btn btn-ghost btn-sm',txt:'🧮 เครื่องช่วยนับเงิน (แบงค์/เหรียญ)',style:{width:'100%',marginTop:'4px'},onClick:function(){box.style.display=box.style.display==='none'?'grid':'none'}});
+    var container=el('div'); container.appendChild(toggleBtn); container.appendChild(box);
+    return container;
+  }
+
   if(state.currentShift){
     var cs=state.currentShift;
     var shiftOrders=state.orders.filter(o=>o.shiftId===cs.id);
-    
-    // Group totals by payment method
-    var pmTotals = { cash:0, qr:0, card:0, delivery_credit:0 };
-    shiftOrders.forEach(o=>{ if(pmTotals[o.paymentMethod]!==undefined) pmTotals[o.paymentMethod]+=o.net; });
-    
-    var expectedCash = cs.opening_cash + pmTotals.cash;
+    var pmTotals={cash:0,qr:0,card:0,delivery_credit:0};
+    shiftOrders.forEach(o=>{if(pmTotals[o.paymentMethod]!==undefined)pmTotals[o.paymentMethod]+=o.net});
+    var expectedCash=cs.opening_cash+pmTotals.cash;
 
-    sb.appendChild(el('div',{cls:'shift-banner shift-open'},
-      el('span',{txt:'🟢 กำลังเปิดกะ'}),
-      el('span',{txt:'เปิดเมื่อ '+fmtDateTime(cs.opened_at),style:{fontWeight:400,fontSize:'.7rem'}})
-    ));
+    sb.appendChild(el('div',{cls:'shift-banner shift-open'},el('span',{txt:'🟢 กำลังเปิดกะ'}),el('span',{txt:'เปิดเมื่อ '+fmtDateTime(cs.opened_at),style:{fontWeight:400,fontSize:'.7rem'}})));
 
-    // Summary block
     var sumBox=el('div',{style:{background:'rgba(30,41,59,.4)',borderRadius:'12px',padding:'14px',display:'flex',flexDirection:'column',gap:'10px'}});
     sumBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,.1)',paddingBottom:'6px'}},el('span',{txt:'ยอดขายรวมในกะนี้ ('+shiftOrders.length+' บิล)'}),el('span',{txt:fmtDisplay(shiftOrders.reduce((s,o)=>s+o.net,0)),style:{fontWeight:700}})));
-    
     Object.keys(pmTotals).forEach(pmKey=>{
-      if(pmTotals[pmKey]>0 || pmKey==='cash') {
-        sumBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.8rem'}},el('span',{txt:payLabel(pmKey),style:{color:'#94a3b8'}}),el('span',{txt:fmtDisplay(pmTotals[pmKey]),style:{color:'#fff'}})));
-      }
+      if(pmTotals[pmKey]>0||pmKey==='cash')sumBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.8rem'}},el('span',{txt:payLabel(pmKey),style:{color:'#94a3b8'}}),el('span',{txt:fmtDisplay(pmTotals[pmKey]),style:{color:'#fff'}})));
     });
     sb.appendChild(sumBox);
 
-    // Cash check block
     var cashBox=el('div',{style:{background:'rgba(245,158,11,.05)',border:'1px solid rgba(245,158,11,.2)',borderRadius:'12px',padding:'14px',display:'flex',flexDirection:'column',gap:'8px'}});
     cashBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.8rem'}},el('span',{txt:'เงินทอนเปิดกะ (ลิ้นชัก)'}),el('span',{txt:fmtDisplay(cs.opening_cash)})));
     cashBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.8rem'}},el('span',{txt:'ยอดขายเฉพาะเงินสด'}),el('span',{txt:'+ '+fmtDisplay(pmTotals.cash)})));
     cashBox.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontWeight:700,borderTop:'1px solid rgba(245,158,11,.2)',paddingTop:'6px'}},el('span',{txt:'เงินที่ควรมีในลิ้นชัก (คาด)'}),el('span',{txt:fmtDisplay(expectedCash),style:{color:'#f59e0b'}})));
     sb.appendChild(cashBox);
 
-    // Close Shift Form
     var closeBox=el('div',{style:{background:'rgba(239,68,68,.06)',border:'1px solid rgba(239,68,68,.2)',borderRadius:'12px',padding:'14px',display:'flex',flexDirection:'column',gap:'12px'}});
     closeBox.appendChild(el('p',{txt:'ปิดกะ (ตรวจสอบเงินสด)',style:{color:'#f87171',fontWeight:700,margin:0}}));
     var actualI=mkInp({type:'number',placeholder:'นับเงินสดในลิ้นชักจริง...'});
     var diffPreview=el('div',{style:{display:'none',padding:'10px',borderRadius:'8px',border:'1px solid #334155',marginTop:'4px'}});
-    actualI.addEventListener('input',()=>{
-      var actual=Number(actualI.value||0); var diff=actual-expectedCash;
+    function updateDiff(){
+      var actual=Number(actualI.value||0);var diff=actual-expectedCash;
       diffPreview.style.display='block';
       diffPreview.style.background=diff>=0?'rgba(16,185,129,.08)':'rgba(239,68,68,.08)';
       diffPreview.style.borderColor=diff>=0?'rgba(16,185,129,.3)':'rgba(239,68,68,.3)';
       diffPreview.innerHTML='<div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:700"><span style="color:'+(diff>=0?'#10b981':'#f87171')+'">เงิน'+(diff>=0?'เกิน':'ขาด')+'</span><span style="color:'+(diff>=0?'#10b981':'#f87171')+'">'+fmtDisplay(Math.abs(diff))+'</span></div>';
-    });
+    }
+    actualI.addEventListener('input',updateDiff);
     var noteI=mkInp({placeholder:'หมายเหตุการปิดกะ (ถ้ามี)'});
     
     closeBox.appendChild(mkField('ยอดเงินสดจริงที่นับได้ (฿)',actualI));
+    closeBox.appendChild(makeCashCounter(actualI, updateDiff)); // เรียกใช้เครื่องมือนับแบงค์ตอนปิดกะ
     closeBox.appendChild(diffPreview);
     closeBox.appendChild(mkField('หมายเหตุ',noteI));
     closeBox.appendChild(el('button',{cls:'btn btn-danger',txt:'🔒 ยืนยันปิดกะการขาย',style:{width:'100%'},onClick:async function(){
-      if(!actualI.value)return showToast('กรุณากรอกยอดเงินจริง');
-      this.disabled=true;
-      var actual=Number(actualI.value); var diff=actual-expectedCash;
+      if(!actualI.value)return showToast('กรุณากรอกยอดเงินจริง');this.disabled=true;
+      var actual=Number(actualI.value);var diff=actual-expectedCash;
       await _sb.from('shifts').update({status:'closed',closed_at:new Date().toISOString(),closing_cash:actual,expected_cash:expectedCash,cash_diff:diff,note:noteI.value||null}).eq('id',cs.id);
-      showToast('✓ ปิดกะเรียบร้อย'); await refreshView();
+      showToast('✓ ปิดกะเรียบร้อย');await refreshView();
     }}));
     sb.appendChild(closeBox);
 
@@ -612,8 +622,11 @@ function renderShift(){
     var openBox=el('div',{style:{background:'rgba(16,185,129,.06)',border:'1px solid rgba(16,185,129,.2)',borderRadius:'12px',padding:'14px',display:'flex',flexDirection:'column',gap:'12px'}});
     openBox.appendChild(el('p',{txt:'เปิดกะใหม่',style:{color:'#10b981',fontWeight:700,margin:0}}));
     var cashI=mkInp({type:'number',placeholder:'ใส่จำนวนเงิน',value:'0'});
+    
     openBox.appendChild(mkField('เงินทอนเริ่มต้นในลิ้นชัก (฿)',cashI));
-    openBox.appendChild(el('button',{cls:'btn btn-emerald',txt:'🟢 เปิดกะเริ่มขาย',style:{width:'100%'},onClick:async function(){
+    openBox.appendChild(makeCashCounter(cashI, null)); // เรียกใช้เครื่องมือนับแบงค์ตอนเปิดกะ
+
+    openBox.appendChild(el('button',{cls:'btn btn-emerald',txt:'🟢 เปิดกะเริ่มขาย',style:{width:'100%',marginTop:'8px'},onClick:async function(){
       this.disabled=true;
       await _sb.from('shifts').insert([{opening_cash:Number(cashI.value||0),status:'open'}]);
       showToast('✓ เปิดกะสำเร็จ');await refreshView();
@@ -621,14 +634,37 @@ function renderShift(){
     sb.appendChild(openBox);
   }
 
-  shiftCard.appendChild(sb); wrap.appendChild(shiftCard);
+  shiftCard.appendChild(sb);wrap.appendChild(shiftCard);
+
+  // ประวัติกะ
+  var histCard=el('div',{cls:'card'});
+  histCard.appendChild(el('div',{cls:'card-head',txt:'ประวัติรอบการขาย'}));
+  var allShifts=(state.allShifts||[]).filter(s=>s.status==='closed');
+  if(allShifts.length===0){histCard.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีประวัติกะที่ปิดแล้ว',style:{textAlign:'center',color:'#475569',margin:0}})))}
+  else{
+    var sw=el('div',{style:{overflowX:'auto'}});
+    var tbody=el('tbody',{});
+    allShifts.forEach(sh=>{
+      var diff=sh.cashDiff;
+      tbody.appendChild(el('tr',{},
+        el('td',{style:{fontSize:'.8rem',color:'#94a3b8',whiteSpace:'nowrap'}},el('span',{txt:fmtDateTime(sh.openedAt)}),el('br',{}),el('span',{txt:'→ '+fmtDateTime(sh.closedAt)})),
+        el('td',{txt:fmtDisplay(sh.openingCash),style:{textAlign:'right'}}),
+        el('td',{txt:sh.expectedCash!=null?fmtDisplay(sh.expectedCash):'-',style:{textAlign:'right'}}),
+        el('td',{txt:sh.closingCash!=null?fmtDisplay(sh.closingCash):'-',style:{textAlign:'right'}}),
+        el('td',{style:{textAlign:'right',fontWeight:700,color:diff==null?'#94a3b8':diff>=0?'#10b981':'#f87171'},txt:diff!=null?(diff>=0?'+':'')+fmtDisplay(diff):'-'}),
+        el('td',{txt:sh.note||'-',style:{color:'#64748b',fontSize:'.75rem',maxWidth:'120px'}})
+      ));
+    });
+    sw.appendChild(el('table',{style:{minWidth:'600px'}},el('thead',{},el('tr',{},el('th',{txt:'ช่วงเวลา'}),el('th',{txt:'เปิดกะ',style:{textAlign:'right'}}),el('th',{txt:'คาดว่ามี',style:{textAlign:'right'}}),el('th',{txt:'นับจริง',style:{textAlign:'right'}}),el('th',{txt:'ขาด/เกิน',style:{textAlign:'right'}}),el('th',{txt:'หมายเหตุ'}))),tbody));
+    histCard.appendChild(sw);
+  }
+  wrap.appendChild(histCard);
   return wrap;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INVENTORY
 // ═══════════════════════════════════════════════════════════════════════════════
-// (ย่อโค้ดคลังสินค้าเพื่อประหยัดพื้นที่ ทุกอย่างทำงานเหมือนเดิม)
 function renderInventory(){
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
   var bar=el('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',justifyContent:'space-between'}});
@@ -726,12 +762,10 @@ function renderStockAdj(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RECIPE (Fixed Pricing & Calculator perfectly integrated)
+// RECIPE
 // ═══════════════════════════════════════════════════════════════════════════════
 function renderRecipe(){
   var wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-  
-  // Recipe List Sidebar logic
   var listCard=el('div',{cls:'card'});
   listCard.appendChild(el('div',{cls:'card-head'},el('span',{txt:'เมนูทั้งหมด'}),el('button',{cls:'btn btn-primary btn-sm',txt:'+ เพิ่ม',onClick:openModalNewRecipe})));
   var lb=el('div',{style:{maxHeight:'280px',overflowY:'auto'}});
@@ -745,12 +779,10 @@ function renderRecipe(){
   if(!recipe){wrap.appendChild(el('div',{style:{textAlign:'center',color:'#475569',padding:'32px',border:'1px solid #1e293b',borderRadius:'16px'},txt:'เลือกเมนูเพื่อจัดการ'}));return wrap}
   var cost=calcRecipeCost(recipe.lines,state.ingredients);
 
-  // Unified Pricing & Auto-Calculator Card
   var priceCard=el('div',{cls:'card'});
   priceCard.appendChild(el('div',{cls:'card-head',txt:'💰 จัดการราคาขาย & กำไร (แยกแพลตฟอร์ม)'}));
   var pBody=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'16px'}});
   
-  // Create pricing table
   var pTable=el('table',{style:{minWidth:'100%'}});
   pTable.appendChild(el('thead',{},el('tr',{},
     el('th',{txt:'แพลตฟอร์ม'}),
@@ -762,16 +794,13 @@ function renderRecipe(){
   )));
   var pTbody=el('tbody',{});
 
-  // Row builder function
   function buildPriceRow(type, id, name, gpPct, currentPrice){
     var isStore=type==='storefront';
     var tr=el('tr',{});
-    
-    // UI Elements
     var priceInp=mkInp({type:'number',value:currentPrice,style:{padding:'6px',fontSize:'.875rem',textAlign:'right'}});
     var profitSpan=el('span',{style:{fontWeight:700}});
     var marginSpan=el('span',{style:{fontWeight:700}});
-    var saveBtn=el('button',{cls:'btn btn-ghost btn-sm',txt:'บันทึก',style:{display:'none'}}); // Hide until changed
+    var saveBtn=el('button',{cls:'btn btn-ghost btn-sm',txt:'บันทึก',style:{display:'none'}}); 
 
     function updateCalc(){
       var p=Number(priceInp.value||0);
@@ -781,7 +810,6 @@ function renderRecipe(){
       
       profitSpan.textContent=p>0?fmtDisplay(profit):'-';
       profitSpan.style.color=p>0?(profit>=0?'#10b981':'#f87171'):'#64748b';
-      
       marginSpan.textContent=p>0?margin.toFixed(1)+'%':'-';
       marginSpan.style.color=p>0?(margin>=0?'#10b981':'#f87171'):'#64748b';
     }
@@ -813,22 +841,17 @@ function renderRecipe(){
     tr.appendChild(el('td',{style:{textAlign:'right'}},profitSpan));
     tr.appendChild(el('td',{style:{textAlign:'right'}},marginSpan));
     tr.appendChild(el('td',{style:{textAlign:'center'}},saveBtn));
-
-    updateCalc(); // initial calculation
-    return tr;
+    updateCalc(); return tr;
   }
 
-  // Add Storefront Row
   pTbody.appendChild(buildPriceRow('storefront', null, '🏠 หน้าร้าน', 0, recipe.price));
-
-  // Add Delivery Rows
   var actPlats=state.platforms.filter(p=>p.active);
   if(actPlats.length===0){
     pTbody.appendChild(el('tr',{},el('td',{colSpan:6,style:{textAlign:'center',color:'#64748b'}} ,el('span',{txt:'ยังไม่มีแอปเดลิเวอรี่ ไปเพิ่มได้ที่ "ตั้งค่าร้าน"'}))));
   } else {
     actPlats.forEach(plat=>{
       var pp=state.platformPrices.find(x=>x.recipeId===recipe.id && x.platformId===plat.id);
-      var cp=pp?pp.price:recipe.price; // fallback to base price
+      var cp=pp?pp.price:recipe.price;
       pTbody.appendChild(buildPriceRow('delivery', plat.id, '🛵 '+plat.name, plat.gpPercent, cp));
     });
   }
@@ -837,7 +860,6 @@ function renderRecipe(){
   var twrap=el('div',{style:{overflowX:'auto',border:'1px solid #1e293b',borderRadius:'12px'}});
   twrap.appendChild(pTable);
   
-  // Cost info box
   pBody.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(248,113,113,.05)',padding:'10px 14px',borderRadius:'10px',border:'1px solid rgba(248,113,113,.2)'}},
     el('span',{txt:'ต้นทุนวัตถุดิบ (COGS) ปัจจุบัน',style:{color:'#f87171',fontSize:'.875rem'}}),
     el('span',{txt:fmtCost(cost)+' / แก้ว',style:{color:'#f87171',fontWeight:700,fontSize:'1.1rem'}})
@@ -846,7 +868,7 @@ function renderRecipe(){
   priceCard.appendChild(pBody);
   wrap.appendChild(priceCard);
 
-  // ── Ingredients (BOM) ──
+  // Ingredients (BOM)
   var ingCard=el('div',{cls:'card'});
   ingCard.appendChild(el('div',{cls:'card-head'},el('span',{txt:'📋 สูตรวัตถุดิบ (หน่วยฐาน)'}),el('button',{cls:'btn btn-primary btn-sm',txt:'+ เพิ่มวัตถุดิบ',onClick:()=>openModalAddIngToRecipe(recipe)})));
   var sw2=el('div',{style:{overflowX:'auto'}});
