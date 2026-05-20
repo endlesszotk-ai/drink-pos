@@ -1877,61 +1877,260 @@ function modalReconcile(){
   openModal('✏️ ปรับยอดสต็อก (Reconcile)',cont);
 }
 
+/* ── Sprint 10 Helpers: Inventory Variance & Leakage ── */
+
+// type ที่นับว่าเป็น "ของรั่ว" (loss แน่นอน — ขาออกอย่างเดียว)
+var LEAK_TYPES={'Damage/Waste':1,'Expired/Spoilage':1};
+
+// CPU (ต้นทุน/หน่วย) ของวัตถุดิบจากชื่อ — match กับ S.ings
+function _ingCpu(name){
+  var ing=S.ings.find(function(i){return i.name===name});
+  return ing?+ing.cpu||0:0;
+}
+
+// signed variance qty ของ 1 adjustment
+//   + = ได้เพิ่ม / − = สูญหาย / 0 = ไม่นับ (Receive, Produce WIP, WIP/R&D)
+function _adjSignedQty(a){
+  var q=+a.qty||0;
+  if(a.type==='Reconcile'){
+    if(a.reason&&a.reason.indexOf('น้อยกว่า')>=0)return -q;
+    if(a.reason&&a.reason.indexOf('มากกว่า')>=0)return  q;
+    return 0;
+  }
+  if(LEAK_TYPES[a.type])return -q;
+  return 0;
+}
+
+// มูลค่า Leakage (บาท) ของ adjustment — เลขลบ = ขาดทุน
+function _adjLeakage(a){return _adjSignedQty(a)*_ingCpu(a.ingName)}
+
 /* ── Stock Adj History ── */
 function pgStockAdj(){
   var w=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
+
+  /* ── Header ── */
   w.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},
-    el('button',{cls:'btn btn-ghost btn-sm',txt:'← กลับสต็อก',onClick:function(){navigate('stock')}}),
-    el('h2',{txt:'📋 ประวัติการปรับสต็อก',style:{fontWeight:900,margin:0,fontSize:'1.05rem'}})
+    el('button',{cls:'btn btn-ghost btn-sm',txt:'← กลับสต็อก',
+      onClick:function(){navigate('stock')}}),
+    el('h2',{txt:'📋 ประวัติสต็อก & รายงานเงินรั่ว',
+      style:{fontWeight:900,margin:0,fontSize:'1.05rem'}})
   ));
-  // Quick write-off form
-  var fc=el('div',{cls:'card'});fc.appendChild(el('div',{cls:'card-head',txt:'✂️ ตัดสต็อกทิ้ง / R&D'}));
-  var fb=el('div',{cls:'card-body',style:{display:'flex',flexDirection:'column',gap:'12px'}});
+
+  /* ── Task 2: Financial Leakage Summary (2 cards) ── */
+  var leakRows=S.adjs.filter(function(a){
+    return a.type==='Reconcile'||LEAK_TYPES[a.type];
+  });
+  var totalLeak=0;            // รวมเฉพาะส่วนติดลบ
+  var byItem={};              // ingName -> ยอดรั่วสะสม (เลขลบ)
+  leakRows.forEach(function(a){
+    var v=_adjLeakage(a);
+    if(v<0){
+      totalLeak+=v;
+      byItem[a.ingName]=(byItem[a.ingName]||0)+v;
+    }
+  });
+  var topItem=null,topVal=0;
+  Object.keys(byItem).forEach(function(k){
+    if(byItem[k]<topVal){topVal=byItem[k];topItem=k}
+  });
+
+  var sumGrid=el('div',{style:{display:'grid',
+    gridTemplateColumns:'1fr 1fr',gap:'14px'}});
+  // Card 1: Total Leakage
+  var c1=el('div',{cls:'card',style:{
+    background:totalLeak<0?'#fff1f2':'var(--card)',
+    border:'1.5px solid '+(totalLeak<0?'#fecdd3':'var(--border)')
+  }});
+  c1.appendChild(el('div',{cls:'card-body',style:{display:'flex',
+    flexDirection:'column',gap:'10px'}},
+    el('div',{style:{display:'flex',alignItems:'center',
+      justifyContent:'space-between'}},
+      el('p',{txt:'ยอดสต็อกรั่วไหลสะสม',style:{color:'var(--muted)',
+        fontSize:'.74rem',fontWeight:700,margin:0,letterSpacing:'.04em',
+        textTransform:'uppercase'}}),
+      el('div',{style:{width:'34px',height:'34px',borderRadius:'9px',
+        background:totalLeak<0?'rgba(225,29,72,.12)':'rgba(10,10,10,.06)',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:'1rem'}},'💸')
+    ),
+    el('p',{txt:fmtB(totalLeak),style:{
+      color:totalLeak<0?'var(--red)':'var(--txt)',
+      fontWeight:900,fontSize:'1.7rem',letterSpacing:'-.03em',
+      margin:0,lineHeight:1}}),
+    el('p',{txt:leakRows.length+' รายการในประวัติ',
+      style:{color:'var(--muted)',fontSize:'.72rem',margin:0,fontWeight:600}})
+  ));
+  sumGrid.appendChild(c1);
+  // Card 2: Top Leakage Item
+  var c2=el('div',{cls:'card',style:{background:'var(--card)',
+    border:'1px solid var(--border)'}});
+  c2.appendChild(el('div',{cls:'card-body',style:{display:'flex',
+    flexDirection:'column',gap:'10px'}},
+    el('div',{style:{display:'flex',alignItems:'center',
+      justifyContent:'space-between'}},
+      el('p',{txt:'วัตถุดิบรั่วหนักสุด',style:{color:'var(--muted)',
+        fontSize:'.74rem',fontWeight:700,margin:0,letterSpacing:'.04em',
+        textTransform:'uppercase'}}),
+      el('div',{style:{width:'34px',height:'34px',borderRadius:'9px',
+        background:'var(--gold-l)',display:'flex',alignItems:'center',
+        justifyContent:'center',fontSize:'1rem'}},'🎯')
+    ),
+    el('p',{txt:topItem||'—',style:{
+      color:topItem?'var(--gold-h)':'var(--muted)',
+      fontWeight:900,fontSize:'1.25rem',letterSpacing:'-.02em',
+      margin:0,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',
+      whiteSpace:'nowrap'}}),
+    el('p',{txt:topItem?'รั่ว '+fmtB(topVal)+' (อาจเป็น Portion Creep)':
+      'ยังไม่มีรายการรั่ว',
+      style:{color:topItem?'var(--red)':'var(--muted)',
+      fontSize:'.74rem',margin:0,fontWeight:700}})
+  ));
+  sumGrid.appendChild(c2);
+  w.appendChild(sumGrid);
+
+  /* ── Task 3: Write-off form (เพิ่ม Expired/Spoilage) ── */
+  var fc=el('div',{cls:'card'});
+  fc.appendChild(el('div',{cls:'card-head',txt:'✂️ ตัดสต็อกทิ้ง / R&D'}));
+  var fb=el('div',{cls:'card-body',style:{display:'flex',
+    flexDirection:'column',gap:'12px'}});
   var f={ingId:'',type:'Damage/Waste',qty:'',mult:1,reason:''};
-  var tE=mkSel([{l:'ของเสีย/สูญหาย',v:'Damage/Waste'},{l:'WIP/R&D',v:'WIP/R&D'}],'Damage/Waste',function(e){f.type=e.target.value});
-  var iOpts=[{l:'-- เลือก --',v:''}].concat(S.ings.map(function(i){return{l:i.name+' ('+i.stock+' '+i.unit+')',v:i.id}}));
+  var typeOpts=[
+    {l:'🥤 ของเสีย/หก/สูญหาย (Damage/Waste)',v:'Damage/Waste'},
+    {l:'🕒 หมดอายุ/บูด/เสีย (Expired/Spoilage)',v:'Expired/Spoilage'},
+    {l:'🧪 WIP/R&D (ทดลองสูตร)',v:'WIP/R&D'}
+  ];
+  var tE=mkSel(typeOpts,'Damage/Waste',function(e){f.type=e.target.value});
+  var iOpts=[{l:'-- เลือก --',v:''}].concat(S.ings.map(function(i){
+    return{l:i.name+' ('+i.stock+' '+i.unit+')',v:i.id}
+  }));
   var ext=el('div',{});
   var iSel=mkSel(iOpts,'',function(e){f.ingId=e.target.value;bldWO()});
   function bldWO(){
-    ext.innerHTML='';var ing=S.ings.find(function(i){return i.id===+f.ingId});if(!ing)return;
-    var units=UNIT_FAM[ing.unit]||[{n:ing.unit,m:1}];f.mult=units[0].m;
-    var qI=mkI({type:'number',pl:'0'});qI.addEventListener('input',function(e){f.qty=e.target.value});
-    var uSel=mkSel(units.map(function(u){return{l:u.n,v:u.m}}),units[0].m,function(e){f.mult=+e.target.value});
+    ext.innerHTML='';
+    var ing=S.ings.find(function(i){return i.id===+f.ingId});
+    if(!ing)return;
+    var units=UNIT_FAM[ing.unit]||[{n:ing.unit,m:1}];
+    f.mult=units[0].m;
+    var qI=mkI({type:'number',pl:'0'});
+    qI.addEventListener('input',function(e){f.qty=e.target.value});
+    var uSel=mkSel(units.map(function(u){return{l:u.n,v:u.m}}),
+      units[0].m,function(e){f.mult=+e.target.value});
     ext.appendChild(el('div',{cls:'grid2'},mkF('จำนวน',qI),mkF('หน่วย',uSel)));
   }
-  var rI=mkI({pl:'หมายเหตุ'});rI.addEventListener('input',function(e){f.reason=e.target.value});
-  var subBtn=el('button',{cls:'btn btn-danger',txt:'✂️ ยืนยันตัดสต็อก',style:{width:'100%'},
+  var rI=mkI({pl:'หมายเหตุ (เช่น "ทำหก", "ลืมในตู้เย็น")'});
+  rI.addEventListener('input',function(e){f.reason=e.target.value});
+  var subBtn=el('button',{cls:'btn btn-danger',txt:'✂️ ยืนยันตัดสต็อก',
+    style:{width:'100%'},
     onClick:async function(){
       if(!f.ingId||!f.qty)return toast('เลือกรายการและกรอกจำนวน','#e11d48');
-      this.disabled=true;var ing=S.ings.find(function(i){return i.id===+f.ingId});
+      this.disabled=true;
+      var ing=S.ings.find(function(i){return i.id===+f.ingId});
       var bq=+f.qty*+f.mult;
       await SB.from('ingredients').update({stock:Math.max(0,ing.stock-bq)}).eq('id',ing.id);
-      await SB.from('adjustments').insert([{ingredient_id:ing.id,ing_name:ing.name,type:f.type,qty:bq,unit:ing.unit,reason:f.reason||null}]);
-      toast('✓ ตัดสต็อกเรียบร้อย');await reload();
+      await SB.from('adjustments').insert([{ingredient_id:ing.id,
+        ing_name:ing.name,type:f.type,qty:bq,unit:ing.unit,
+        reason:f.reason||null}]);
+      toast('✓ ตัดสต็อกเรียบร้อย');
+      await reload();
     }
   });
   fb.appendChild(el('div',{cls:'grid2'},mkF('ประเภท',tE),mkF('วัตถุดิบ',iSel)));
-  fb.appendChild(ext);fb.appendChild(mkF('หมายเหตุ',rI));fb.appendChild(subBtn);
-  fc.appendChild(fb);w.appendChild(fc);
+  fb.appendChild(ext);
+  fb.appendChild(mkF('หมายเหตุ',rI));
+  fb.appendChild(subBtn);
+  fc.appendChild(fb);
+  w.appendChild(fc);
 
-  var hc=el('div',{cls:'card'});hc.appendChild(el('div',{cls:'card-head',txt:'ประวัติทั้งหมด ('+S.adjs.length+' รายการ)'}));
+  /* ── Task 1: Inventory Variance Report (เฉพาะ Reconcile) ── */
+  var recRows=S.adjs.filter(function(a){return a.type==='Reconcile'});
+  var vCard=el('div',{cls:'card'});
+  vCard.appendChild(el('div',{cls:'card-head',
+    txt:'🔍 รายงาน Variance (สต็อกเพี้ยน จากการ Reconcile)'}));
+  if(recRows.length){
+    var vw=el('div',{cls:'tbl-wrap'});
+    var vb=el('tbody',{});
+    recRows.forEach(function(a){
+      var v=_adjSignedQty(a);
+      var cpu=_ingCpu(a.ingName);
+      var leak=v*cpu;
+      var vColor=v<0?'var(--red)':v>0?'var(--green)':'var(--muted)';
+      var lColor=leak<0?'var(--red)':leak>0?'var(--green)':'var(--muted)';
+      vb.appendChild(el('tr',{},
+        el('td',{txt:a.date,style:{color:'var(--muted)',
+          fontSize:'.78rem',whiteSpace:'nowrap'}}),
+        el('td',{txt:a.ingName,style:{fontWeight:700}}),
+        el('td',{txt:(v>0?'+':'')+v+' '+a.unit,
+          style:{color:vColor,fontWeight:800,whiteSpace:'nowrap'}}),
+        el('td',{txt:cpu?fmtC(cpu):'—',
+          style:{color:'var(--muted)',fontSize:'.82rem',whiteSpace:'nowrap'}}),
+        el('td',{txt:cpu?(leak>0?'+':'')+fmtB(leak):'—',
+          style:{color:lColor,fontWeight:leak<0?900:700,
+          whiteSpace:'nowrap',textAlign:'right'}})
+      ));
+    });
+    vw.appendChild(el('table',{style:{minWidth:'520px'}},
+      el('thead',{},el('tr',{},
+        el('th',{txt:'วันที่'}),
+        el('th',{txt:'รายการ'}),
+        el('th',{txt:'Variance'}),
+        el('th',{txt:'CPU'}),
+        el('th',{txt:'มูลค่ารั่ว',style:{textAlign:'right'}})
+      )),vb));
+    vCard.appendChild(vw);
+    vCard.appendChild(el('p',{
+      txt:'※ Variance = Actual − Theoretical · เลขแดงคือสต็อกหาย (อาจเกิดจาก Portion Creep, ของเสียไม่บันทึก, หรือทุจริต) · มูลค่ารั่วคำนวณจาก Variance × CPU ปัจจุบัน',
+      style:{padding:'10px 18px 14px',margin:0,color:'var(--muted)',
+        fontSize:'.72rem',lineHeight:1.6,fontStyle:'italic'}
+    }));
+  }else{
+    vCard.appendChild(el('div',{cls:'card-body'},
+      el('p',{txt:'ยังไม่มีการ Reconcile · กดปุ่ม "✏️ ปรับยอด" ในหน้าสต็อกเพื่อเริ่มต้น',
+        style:{textAlign:'center',color:'var(--muted)',margin:0,fontSize:'.85rem'}})));
+  }
+  w.appendChild(vCard);
+
+  /* ── History ทั้งหมด (อัปเดต badge รองรับ Expired/Spoilage) ── */
+  var hc=el('div',{cls:'card'});
+  hc.appendChild(el('div',{cls:'card-head',
+    txt:'📜 ประวัติทั้งหมด ('+S.adjs.length+' รายการ)'}));
   if(S.adjs.length){
-    var tw=el('div',{cls:'tbl-wrap'});var tb=el('tbody',{});
-    var colors={'Receive':'b-green','Reconcile':'b-blue','Damage/Waste':'b-rose','WIP/R&D':'b-violet','Produce WIP':'b-gold'};
+    var tw=el('div',{cls:'tbl-wrap'});
+    var tb=el('tbody',{});
+    var colors={
+      'Receive':'b-green',
+      'Reconcile':'b-blue',
+      'Damage/Waste':'b-rose',
+      'Expired/Spoilage':'b-amber',
+      'WIP/R&D':'b-violet',
+      'Produce WIP':'b-gold'
+    };
     S.adjs.forEach(function(a){
       tb.appendChild(el('tr',{},
-        el('td',{txt:a.date,style:{color:'var(--muted)',fontSize:'.8rem',whiteSpace:'nowrap'}}),
+        el('td',{txt:a.date,style:{color:'var(--muted)',
+          fontSize:'.8rem',whiteSpace:'nowrap'}}),
         el('td',{txt:a.ingName,style:{fontWeight:700}}),
         el('td',{},el('span',{cls:'badge '+(colors[a.type]||'b-slate'),txt:a.type})),
         el('td',{txt:a.qty+' '+a.unit,style:{whiteSpace:'nowrap'}}),
-        el('td',{txt:a.reason||'-',style:{color:'var(--muted)',fontSize:'.8rem',maxWidth:'160px'}})
+        el('td',{txt:a.reason||'-',style:{color:'var(--muted)',
+          fontSize:'.8rem',maxWidth:'160px'}})
       ));
     });
     tw.appendChild(el('table',{style:{minWidth:'500px'}},
-      el('thead',{},el('tr',{},el('th',{txt:'วันที่'}),el('th',{txt:'รายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'ปริมาณ'}),el('th',{txt:'หมายเหตุ'}))),tb));
+      el('thead',{},el('tr',{},
+        el('th',{txt:'วันที่'}),
+        el('th',{txt:'รายการ'}),
+        el('th',{txt:'ประเภท'}),
+        el('th',{txt:'ปริมาณ'}),
+        el('th',{txt:'หมายเหตุ'})
+      )),tb));
     hc.appendChild(tw);
-  }else hc.appendChild(el('div',{cls:'card-body'},el('p',{txt:'ยังไม่มีประวัติ',style:{textAlign:'center',color:'var(--muted)',margin:0}})));
+  }else{
+    hc.appendChild(el('div',{cls:'card-body'},
+      el('p',{txt:'ยังไม่มีประวัติ',
+        style:{textAlign:'center',color:'var(--muted)',margin:0}})));
+  }
   w.appendChild(hc);
+
   return w;
 }
 /* ════ RECIPE ════ */
