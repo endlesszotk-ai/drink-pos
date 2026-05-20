@@ -598,7 +598,7 @@ var ALL_PAGES=[
 /* ════ STATE ════ */
 var S={
   page:'pos', staff:null, staffList:[],
-  ings:[], wips:[], recipes:[], adjs:[], orders:[],
+  ings:[], wips:[], recipes:[], adjs:[], orders:[], expenses:[],
   platforms:[], platPrices:[], shift:null, shifts:[],
   orderType:'storefront', platId:null, payMethod:'cash',
   cart:[], gpPct:0, adsDsc:0,
@@ -680,8 +680,9 @@ async function fetchAll(){
       SB.from('platforms').select('*').order('id'),
       SB.from('platform_prices').select('*'),
       SB.from('shifts').select('*').order('opened_at',{ascending:false}).limit(60),
-      SB.from('wip_formulas').select('*')
-    ];
+      SB.from('wip_formulas').select('*'),
+SB.from('expenses').select('*').order('created_at',{ascending:false}).limit(100)
+];
     if(isAdmin)qs.push(SB.from('staff').select('*').order('id'));
     var res=await Promise.all(qs);
     var r1=res[0],r2=res[1],r3=res[2],r4=res[3],r5=res[4],
@@ -738,7 +739,21 @@ async function fetchAll(){
              cashDiff:s.cash_diff!=null?+s.cash_diff:null,
              status:s.status,note:s.note};
     });
-    if(isAdmin&&res[9])S.staffList=res[9].data||[];
+    S.expenses=(res[9].data||[]).map(function(x){
+  return{
+    id:x.id,
+    amount:+x.amount||0,
+    category:x.category||'อื่นๆ',
+    description:x.description||'',
+    date:new Date(x.created_at).toLocaleDateString('th-TH',
+      {day:'numeric',month:'short',year:'numeric'}),
+    time:new Date(x.created_at).toLocaleTimeString('th-TH',
+      {hour:'2-digit',minute:'2-digit'}),
+    createdAt:x.created_at
+  };
+});
+    // staff query เลื่อนจาก res[9] → res[10] เพราะ expenses แทรกเข้ามาที่ res[9]
+if(isAdmin&&res[10])S.staffList=res[10].data||[];
     if(S.orderType==='delivery'){
       if(!S.platId){var ap=S.platforms.filter(function(p){return p.active});if(ap.length)S.platId=ap[0].id}
       if(S.platId){var pl=S.platforms.find(function(p){return p.id===S.platId});if(pl)S.gpPct=pl.gp}
@@ -1089,41 +1104,66 @@ function pgDashboard(){
     card.appendChild(body);
     return card;
   }
-  kpiGrid.appendChild(mkKpi('ยอดขายรวม',fmtB(T.gross),'','highlight','💰',T.count+' บิล'));
-  kpiGrid.appendChild(mkKpi('กำไรสุทธิ (True Net)',fmtB(T.profit),
-    T.profit>=0?'var(--green)':'var(--red)',false,
-    T.profit>=0?'📈':'📉','Margin '+T.margin.toFixed(1)+'%'));
+  // Sprint 11: รวม OPEX
+var totalOpex=(S.expenses||[]).reduce(function(s,x){return s+(+x.amount||0)},0);
+var opNet=T.profit-totalOpex;
+
+kpiGrid.appendChild(mkKpi('ยอดขายรวม',fmtB(T.gross),'','highlight','💰',T.count+' บิล'));
+kpiGrid.appendChild(mkKpi('กำไรหลัง OPEX (Operating Net)',fmtB(opNet),
+  opNet>=0?'var(--green)':'var(--red)',false,
+  opNet>=0?'📈':'📉','หักรายจ่าย '+fmtB(totalOpex)));
   w.appendChild(kpiGrid);
 
   /* ── 4) Profit Breakdown (Task 1) ─────────────────────────────── */
-  var pbCard=el('div',{cls:'card'});
-  pbCard.appendChild(el('div',{cls:'card-head',txt:'🧾 รายละเอียดกำไรสุทธิ'}));
-  var pbBody=el('div',{style:{padding:'14px 18px',display:'flex',
-    flexDirection:'column',gap:'8px'}});
-  function pbRow(lbl,val,isDed,isFinal){
-    var color=isFinal?(T.profit>=0?'var(--green)':'var(--red)')
-                     :isDed?'var(--red)':'var(--txt)';
-    var prefix=isDed?'− ':'';
-    return el('div',{style:{display:'flex',justifyContent:'space-between',
-      alignItems:'center',padding:isFinal?'10px 0 0':'4px 0',
-      borderTop:isFinal?'1.5px dashed var(--border)':'none',
-      marginTop:isFinal?'4px':'0'}},
-      el('span',{txt:lbl,style:{color:isFinal?'var(--txt)':'var(--muted)',
-        fontSize:isFinal?'.92rem':'.85rem',fontWeight:isFinal?800:500}}),
-      el('span',{txt:prefix+fmtB(val),style:{color:color,
-        fontWeight:isFinal?900:700,fontSize:isFinal?'1.1rem':'.9rem',
-        whiteSpace:'nowrap'}})
-    );
-  }
-  pbBody.appendChild(pbRow('ยอดขายรวม (Gross)',T.gross,false));
-  pbBody.appendChild(pbRow('ต้นทุนวัตถุดิบ (COGS)',T.cogs,true));
-  pbBody.appendChild(pbRow('ค่า GP แพลตฟอร์ม',T.gpFee,true));
-  if(T.adsDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดการตลาด (Ads)',T.adsDsc,true));
-  if(T.ptsDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดแต้มสมาชิก',T.ptsDsc,true));
-  if(T.extraDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดพิเศษ',T.extraDsc,true));
-  pbBody.appendChild(pbRow('กำไรสุทธิที่แท้จริง',T.profit,false,true));
-  pbCard.appendChild(pbBody);
-  w.appendChild(pbCard);
+  /* ── 4) Profit Breakdown — Sprint 11: + OPEX + Operating Net ── */
+var pbCard=el('div',{cls:'card'});
+var pbHead=el('div',{cls:'card-head'});
+pbHead.appendChild(el('span',{txt:'🧾 รายละเอียดกำไรสุทธิ'}));
+pbHead.appendChild(el('button',{cls:'btn btn-ghost btn-sm',
+  txt:'+ บันทึกรายจ่าย',onClick:modalAddExpense}));
+pbCard.appendChild(pbHead);
+
+var pbBody=el('div',{style:{padding:'14px 18px',display:'flex',
+  flexDirection:'column',gap:'8px'}});
+
+// kind: 'plus' (gross), 'minus' (หัก), 'sub' (subtotal True Net),
+//       'final' (Operating Net)
+function pbRow(lbl,val,kind){
+  var isMinus=kind==='minus', isSub=kind==='sub', isFinal=kind==='final';
+  var color=isFinal?(opNet>=0?'var(--green)':'var(--red)')
+           :isSub?(T.profit>=0?'var(--green)':'var(--red)')
+           :isMinus?'var(--red)':'var(--txt)';
+  var prefix=isMinus?'− ':'';
+  return el('div',{style:{
+    display:'flex',justifyContent:'space-between',alignItems:'center',
+    padding:(isSub||isFinal)?'10px 0 0':'4px 0',
+    borderTop:isFinal?'2px solid var(--txt)':
+              isSub?'1.5px dashed var(--border)':'none',
+    marginTop:(isSub||isFinal)?'4px':'0'}},
+    el('span',{txt:lbl,style:{
+      color:(isSub||isFinal)?'var(--txt)':'var(--muted)',
+      fontSize:isFinal?'.95rem':isSub?'.9rem':'.85rem',
+      fontWeight:isFinal?900:isSub?800:500}}),
+    el('span',{txt:prefix+fmtB(val),style:{
+      color:color,
+      fontWeight:(isFinal||isSub)?900:700,
+      fontSize:isFinal?'1.2rem':isSub?'1.05rem':'.9rem',
+      whiteSpace:'nowrap'}})
+  );
+}
+
+pbBody.appendChild(pbRow('ยอดขายรวม (Gross)',T.gross,'plus'));
+pbBody.appendChild(pbRow('ต้นทุนวัตถุดิบ (COGS)',T.cogs,'minus'));
+pbBody.appendChild(pbRow('ค่า GP แพลตฟอร์ม',T.gpFee,'minus'));
+if(T.adsDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดการตลาด (Ads)',T.adsDsc,'minus'));
+if(T.ptsDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดแต้มสมาชิก',T.ptsDsc,'minus'));
+if(T.extraDsc>0.01)pbBody.appendChild(pbRow('ส่วนลดพิเศษ',T.extraDsc,'minus'));
+pbBody.appendChild(pbRow('กำไรสุทธิจากการขาย (True Net)',T.profit,'sub'));
+pbBody.appendChild(pbRow('💸 ค่าใช้จ่ายดำเนินงาน (OPEX)',totalOpex,'minus'));
+pbBody.appendChild(pbRow('กำไรสุทธิหลังหัก OPEX (Operating Net Profit)',opNet,'final'));
+
+pbCard.appendChild(pbBody);
+w.appendChild(pbCard);
 
   /* ── 5) Platform Profitability Analysis (Task 2) ──────────────── */
   var ppCard=el('div',{cls:'card'});
@@ -1193,7 +1233,48 @@ function pgDashboard(){
   }
   ppCard.appendChild(ppBody);
   w.appendChild(ppCard);
+/* ── 5b) Recent OPEX List (Sprint 11) ── */
+var opCard=el('div',{cls:'card'});
+var opHead=el('div',{cls:'card-head'});
+opHead.appendChild(el('span',{
+  txt:'💸 รายจ่ายล่าสุด ('+(S.expenses||[]).length+' รายการ)'}));
+opHead.appendChild(el('button',{cls:'btn btn-ghost btn-sm',
+  txt:'+ เพิ่ม',onClick:modalAddExpense}));
+opCard.appendChild(opHead);
 
+var recentExp=(S.expenses||[]).slice(0,5);
+if(recentExp.length){
+  var ob=el('div',{style:{padding:'4px 0'}});
+  recentExp.forEach(function(e,i){
+    var isLast=i===recentExp.length-1;
+    ob.appendChild(el('div',{style:{
+      display:'flex',alignItems:'center',gap:'10px',
+      padding:'10px 18px',
+      borderBottom:isLast?'none':'1px solid var(--border)'}},
+      el('div',{style:{width:'34px',height:'34px',borderRadius:'9px',
+        background:'rgba(225,29,72,.1)',display:'flex',
+        alignItems:'center',justifyContent:'center',
+        fontSize:'.95rem',flexShrink:0}},'💸'),
+      el('div',{style:{flex:1,minWidth:0}},
+        el('p',{txt:e.category,style:{margin:0,fontWeight:800,
+          fontSize:'.88rem',color:'var(--txt)'}}),
+        el('p',{txt:(e.description||'ไม่มีหมายเหตุ')+' · '+e.date,
+          style:{margin:'2px 0 0',color:'var(--muted)',
+          fontSize:'.74rem',lineHeight:1.4,overflow:'hidden',
+          textOverflow:'ellipsis',whiteSpace:'nowrap'}})
+      ),
+      el('span',{txt:'−'+fmtB(e.amount),style:{color:'var(--red)',
+        fontWeight:900,fontSize:'.95rem',flexShrink:0,whiteSpace:'nowrap'}})
+    ));
+  });
+  opCard.appendChild(ob);
+}else{
+  opCard.appendChild(el('div',{cls:'card-body'},
+    el('p',{txt:'ยังไม่มีรายจ่ายในระบบ — กดปุ่ม "+ เพิ่ม" เพื่อเริ่มต้น',
+      style:{textAlign:'center',color:'var(--muted)',
+        margin:0,fontSize:'.85rem'}})));
+}
+w.appendChild(opCard);
   /* ── 6) Best Sellers (เดิม) ────────────────────────────────────── */
   var im={};
   orders.forEach(function(o){
@@ -1876,7 +1957,64 @@ function modalReconcile(){
   cont.appendChild(mkF('เลือกวัตถุดิบ/เบส',iSel,true));cont.appendChild(ext);
   openModal('✏️ ปรับยอดสต็อก (Reconcile)',cont);
 }
-
+function modalAddExpense(){
+  var f={category:'ค่าแรง',amount:'',description:''};
+  var catOpts=[
+    {l:'💼 ค่าแรง',v:'ค่าแรง'},
+    {l:'🧊 ค่าน้ำแข็ง',v:'ค่าน้ำแข็ง'},
+    {l:'🛒 ค่าวัตถุดิบจิปาถะ',v:'ค่าวัตถุดิบจิปาถะ'},
+    {l:'⚡ สาธารณูปโภค',v:'สาธารณูปโภค'},
+    {l:'📦 อื่นๆ',v:'อื่นๆ'}
+  ];
+  var cSel=mkSel(catOpts,'ค่าแรง',function(e){f.category=e.target.value});
+  var aI=mkI({type:'number',pl:'0.00',step:'0.01'});
+  aI.addEventListener('input',function(e){f.amount=e.target.value});
+  var dI=mkI({pl:'หมายเหตุ (เช่น "ค่าแรง 1/11", "ซื้อน้ำแข็ง 2 ถุง")'});
+  dI.addEventListener('input',function(e){f.description=e.target.value});
+  var sumBox=el('div',{style:{padding:'10px 12px',borderRadius:'10px',
+    background:'#fff1f2',border:'1px solid #fecdd3',
+    display:'flex',justifyContent:'space-between',alignItems:'center'}},
+    el('span',{txt:'ยอดที่จะหักจากกำไร',
+      style:{color:'#be123c',fontWeight:700,fontSize:'.8rem'}}),
+    el('span',{txt:'−฿0.00',id:'expPrev',
+      style:{color:'var(--red)',fontWeight:900,fontSize:'1.05rem'}})
+  );
+  aI.addEventListener('input',function(){
+    var p=document.getElementById('expPrev');
+    if(p)p.textContent='−'+fmtB(+aI.value||0);
+  });
+  var submit=el('button',{cls:'btn btn-danger',txt:'💾 บันทึกรายจ่าย',
+    style:{width:'100%'},
+    onClick:async function(){
+      var amt=+f.amount;
+      if(!amt||amt<=0)return toast('กรอกจำนวนเงินให้ถูกต้อง','#e11d48');
+      this.disabled=true;
+      try{
+        var r=await SB.from('expenses').insert([{
+          amount:amt,
+          category:f.category,
+          description:f.description||null
+        }]);
+        if(r.error)throw r.error;
+        closeModal();
+        toast('✓ บันทึกรายจ่ายสำเร็จ');
+        await reload();
+      }catch(err){
+        this.disabled=false;
+        toast('เกิดข้อผิดพลาด: '+err.message,'#e11d48');
+      }
+    }
+  });
+  openModal('💸 บันทึกค่าใช้จ่ายดำเนินงาน (OPEX)',
+    el('div',{style:{display:'flex',flexDirection:'column',gap:'12px'}},
+      mkF('หมวดหมู่',cSel,true),
+      mkF('จำนวนเงิน (฿)',aI,true),
+      mkF('หมายเหตุ',dI),
+      sumBox,
+      submit
+    )
+  );
+}
 /* ── Sprint 10 Helpers: Inventory Variance & Leakage ── */
 
 // type ที่นับว่าเป็น "ของรั่ว" (loss แน่นอน — ขาออกอย่างเดียว)
@@ -2595,6 +2733,7 @@ function modalAddPlatform(){
   window.numpadBack=window.numpadBack;
   window.numpadClear=window.numpadClear;
   window.doLogout=window.doLogout;
+  window.modalAddExpense=modalAddExpense;
 
   // Navigation
   window.navigate=navigate;
