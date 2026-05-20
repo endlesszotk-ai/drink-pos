@@ -1844,64 +1844,218 @@ function pgShift(){
 }
 
 /* ════ INVENTORY ════ */
+/* ── Sprint 12 Helpers: Smart Reorder ── */
+
+// คืน list ของวัตถุดิบที่ต้องสั่งซื้อ
+// เงื่อนไข: ไม่ใช่ WIP/เบส, มีตั้งค่า minStock > 0, และ stock <= minStock
+function srLowItems(){
+  return S.ings.filter(function(i){
+    return i.type!=='WIP/เบส'
+        && i.minStock>0
+        && i.stock<=i.minStock;
+  });
+}
+
+// คำนวณจำนวนที่แนะนำให้สั่ง: (minStock × 2) − stock
+// ทำให้สต็อกหลังรับเข้า = 2× ขั้นต่ำ = อยู่ในเกณฑ์ปลอดภัย
+function srSuggestQty(ing){
+  return Math.max(0,(ing.minStock*2)-ing.stock);
+}
+
+// สร้าง Smart Reorder Widget
+function srWidget(){
+  var lows=srLowItems();
+
+  // ── กรณีไม่มีของต้องสั่ง: banner เขียวเล็กๆ ──
+  if(!lows.length){
+    return el('div',{style:{
+      background:'var(--green-bg)',
+      border:'1px solid rgba(138,195,137,.35)',
+      borderRadius:'12px',
+      padding:'12px 16px',
+      display:'flex',alignItems:'center',gap:'10px'}},
+      el('span',{txt:'✅',style:{fontSize:'1.1rem',flexShrink:0}}),
+      el('p',{txt:'สต็อกทุกรายการอยู่ในเกณฑ์ปกติ ไม่จำเป็นต้องสั่งของเพิ่ม',
+        style:{margin:0,color:'#2d7a2c',fontWeight:700,fontSize:'.85rem'}})
+    );
+  }
+
+  // ── กรณีมีของต้องสั่ง: card + grid ──
+  var card=el('div',{cls:'card',style:{
+    border:'1.5px solid #fecdd3',
+    background:'linear-gradient(180deg, #fff5f5 0%, var(--card) 70%)'
+  }});
+
+  // หัวการ์ด: หัวข้อ + จำนวน + ปุ่ม "รับเข้า" ลัด
+  var head=el('div',{cls:'card-head',
+    style:{borderBottom:'1px solid #fecdd3'}});
+  head.appendChild(el('span',{
+    txt:'🛒 แนะนำสั่งซื้อ ('+lows.length+' รายการ)',
+    style:{color:'var(--red)',fontWeight:900,fontSize:'.95rem'}
+  }));
+  head.appendChild(el('button',{
+    cls:'btn btn-emerald btn-sm',
+    txt:'📥 รับเข้า',
+    onClick:modalReceive
+  }));
+  card.appendChild(head);
+
+  // Grid responsive — ปรับ column ตามความกว้างหน้าจอ
+  var grid=el('div',{style:{
+    display:'grid',
+    gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))',
+    gap:'12px',
+    padding:'14px'
+  }});
+
+  lows.forEach(function(ing){
+    var sug=srSuggestQty(ing);
+    var critical=ing.stock<=0;                       // หมดเกลี้ยง = แดงเข้ม
+    var pct=ing.minStock>0?
+      Math.min(100,Math.max(0,(ing.stock/ing.minStock)*100)):0;
+    var accent=critical?'var(--red)':'#ea580c';      // แดง / ส้ม
+    var accentBg=critical?'#fee2e2':'var(--gold-l)';
+    var accentBd=critical?'#fca5a5':'rgba(254,94,55,.3)';
+
+    var item=el('div',{style:{
+      background:'var(--card)',
+      border:'1.5px solid '+accentBd,
+      borderRadius:'12px',
+      padding:'12px',
+      display:'flex',flexDirection:'column',gap:'8px',
+      position:'relative'
+    }});
+
+    // Critical badge มุมขวาบน
+    if(critical){
+      item.appendChild(el('span',{txt:'หมดสต็อก',cls:'badge b-rose',
+        style:{position:'absolute',top:'10px',right:'10px',fontSize:'.62rem'}}));
+    }
+
+    // ชื่อวัตถุดิบ
+    item.appendChild(el('p',{
+      txt:ing.name,
+      style:{margin:0,fontWeight:800,fontSize:'.92rem',color:'var(--txt)',
+        paddingRight:critical?'70px':'0',
+        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}
+    }));
+
+    // คงเหลือ / ขั้นต่ำ
+    item.appendChild(el('p',{
+      txt:'คงเหลือ '+ing.stock+' / ขั้นต่ำ '+ing.minStock+' '+ing.unit,
+      style:{margin:0,color:'var(--muted)',fontSize:'.74rem',fontWeight:600}
+    }));
+
+    // Progress bar — สัดส่วน stock ต่อ min
+    var bw=el('div',{style:{
+      background:'rgba(0,0,0,.06)',borderRadius:'4px',
+      height:'5px',overflow:'hidden'
+    }});
+    bw.appendChild(el('div',{style:{
+      height:'100%',borderRadius:'4px',background:accent,
+      width:pct.toFixed(0)+'%',transition:'width .3s ease'
+    }}));
+    item.appendChild(bw);
+
+    // กล่องแนะนำสั่ง — เด่นที่สุดในการ์ด
+    item.appendChild(el('div',{style:{
+      background:accentBg,borderRadius:'8px',padding:'8px 10px',
+      display:'flex',justifyContent:'space-between',alignItems:'baseline'
+    }},
+      el('span',{txt:'แนะนำสั่ง',
+        style:{color:accent,fontSize:'.72rem',fontWeight:700,
+          textTransform:'uppercase',letterSpacing:'.04em'}}),
+      el('span',{txt:'+'+sug+' '+ing.unit,
+        style:{color:accent,fontSize:'1.05rem',fontWeight:900,
+          letterSpacing:'-.02em'}})
+    ));
+
+    grid.appendChild(item);
+  });
+
+  card.appendChild(grid);
+
+  // Caption เล็กๆ ใต้ grid
+  card.appendChild(el('p',{
+    txt:'※ จำนวนแนะนำ = (ขั้นต่ำ × 2) − คงเหลือ · ทำให้สต็อกหลังรับเข้าอยู่ที่ 2 เท่าของจุดเตือน',
+    style:{margin:0,padding:'0 18px 14px',color:'var(--muted)',
+      fontSize:'.72rem',lineHeight:1.5,fontStyle:'italic'}
+  }));
+
+  return card;
+}
+
+/* ── pgStock (อัปเกรด: เพิ่ม Smart Reorder Widget) ── */
 function pgStock(){
   var w=el('div',{style:{display:'flex',flexDirection:'column',gap:'16px'}});
-  var bar=el('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',justifyContent:'space-between'}});
+
+  // Action Toolbar (เดิม)
+  var bar=el('div',{style:{display:'flex',gap:'10px',
+    flexWrap:'wrap',justifyContent:'space-between'}});
   var lft=el('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap'}});
-  lft.appendChild(el('button',{cls:'btn btn-ghost',txt:'+ เพิ่มวัตถุดิบ',onClick:modalAddIng}));
-  lft.appendChild(el('button',{cls:'btn btn-emerald',txt:'📥 รับเข้า',onClick:modalReceive}));
-  lft.appendChild(el('button',{cls:'btn btn-violet',txt:'✏️ ปรับยอด',onClick:modalReconcile}));
-  lft.appendChild(el('button',{cls:'btn btn-primary',txt:'🍳 ผลิตเบส (WIP)',onClick:function(){modalProduceWIP(null)}}));
+  lft.appendChild(el('button',{cls:'btn btn-ghost',
+    txt:'+ เพิ่มวัตถุดิบ',onClick:modalAddIng}));
+  lft.appendChild(el('button',{cls:'btn btn-emerald',
+    txt:'📥 รับเข้า',onClick:modalReceive}));
+  lft.appendChild(el('button',{cls:'btn btn-violet',
+    txt:'✏️ ปรับยอด',onClick:modalReconcile}));
+  lft.appendChild(el('button',{cls:'btn btn-primary',
+    txt:'🍳 ผลิตเบส (WIP)',onClick:function(){modalProduceWIP(null)}}));
   bar.appendChild(lft);
-  bar.appendChild(el('button',{cls:'btn btn-ghost',txt:'📋 ประวัติ',onClick:function(){navigate('stock_adj')}}));
+  bar.appendChild(el('button',{cls:'btn btn-ghost',
+    txt:'📋 ประวัติ',onClick:function(){navigate('stock_adj')}}));
   w.appendChild(bar);
 
-  var tw=el('div',{cls:'tbl-wrap'});var tb=el('tbody',{});
+  // ★ Sprint 12: Smart Reorder Widget (วางต่อจาก toolbar)
+  w.appendChild(srWidget());
+
+  // Inventory Table (เดิมไม่เปลี่ยน)
+  var tw=el('div',{cls:'tbl-wrap'});
+  var tb=el('tbody',{});
   S.ings.forEach(function(ing){
-    var low=ing.stock<=ing.minStock,isWIP=ing.type==='WIP/เบส';
-    var td3=el('td',{},el('span',{txt:ing.stock+' '+ing.unit,style:{fontWeight:800,color:low?'var(--red)':'var(--green)',fontSize:'.95rem'}}));
-    if(low)td3.appendChild(el('span',{cls:'badge b-rose',txt:'⚠️ ใกล้หมด',style:{marginLeft:'6px'}}));
-    var dBtn=el('button',{txt:'🗑',style:{background:'none',border:'none',cursor:'pointer',color:'#cbd5e1',fontSize:'1.1rem',padding:'4px 8px'},
-      onMouseover:function(){this.style.color='var(--red)'},onMouseout:function(){this.style.color='#cbd5e1'},
-      onClick:async function(){if(confirm('ลบ '+ing.name+'?')){await SB.from('ingredients').delete().eq('id',ing.id);await reload()}}
+    var low=ing.stock<=ing.minStock, isWIP=ing.type==='WIP/เบส';
+    var td3=el('td',{},el('span',{txt:ing.stock+' '+ing.unit,
+      style:{fontWeight:800,color:low?'var(--red)':'var(--green)',
+        fontSize:'.95rem'}}));
+    if(low)td3.appendChild(el('span',{cls:'badge b-rose',
+      txt:'⚠️ ใกล้หมด',style:{marginLeft:'6px'}}));
+    var dBtn=el('button',{txt:'🗑',
+      style:{background:'none',border:'none',cursor:'pointer',
+        color:'#cbd5e1',fontSize:'1.1rem',padding:'4px 8px'},
+      onMouseover:function(){this.style.color='var(--red)'},
+      onMouseout:function(){this.style.color='#cbd5e1'},
+      onClick:async function(){
+        if(confirm('ลบ '+ing.name+'?')){
+          await SB.from('ingredients').delete().eq('id',ing.id);
+          await reload();
+        }
+      }
     });
     var bCls=isWIP?'b-violet':(ing.type==='วัตถุดิบ'?'b-amber':'b-blue');
     tb.appendChild(el('tr',{},
-      el('td',{txt:ing.name,style:{fontWeight:700,color:isWIP?'#5b21b6':'var(--txt)'}}),
+      el('td',{txt:ing.name,style:{fontWeight:700,
+        color:isWIP?'#5b21b6':'var(--txt)'}}),
       el('td',{},el('span',{cls:'badge '+bCls,txt:ing.type})),
       td3,
-      el('td',{txt:fmtC(ing.cpu),style:{color:'var(--gold)',fontWeight:600,whiteSpace:'nowrap'}}),
+      el('td',{txt:fmtC(ing.cpu),style:{color:'var(--gold)',
+        fontWeight:600,whiteSpace:'nowrap'}}),
       el('td',{style:{textAlign:'center'}},dBtn)
     ));
   });
   tw.appendChild(el('table',{style:{minWidth:'560px'}},
-    el('thead',{},el('tr',{},el('th',{txt:'ชื่อรายการ'}),el('th',{txt:'ประเภท'}),el('th',{txt:'สต็อกคงเหลือ'}),el('th',{txt:'ต้นทุน/หน่วย'}),el('th',{txt:'ลบ',style:{textAlign:'center'}}))),tb));
-  var card=el('div',{cls:'card'});card.appendChild(tw);w.appendChild(card);
+    el('thead',{},el('tr',{},
+      el('th',{txt:'ชื่อรายการ'}),
+      el('th',{txt:'ประเภท'}),
+      el('th',{txt:'สต็อกคงเหลือ'}),
+      el('th',{txt:'ต้นทุน/หน่วย'}),
+      el('th',{txt:'ลบ',style:{textAlign:'center'}})
+    )),tb));
+  var card=el('div',{cls:'card'});
+  card.appendChild(tw);
+  w.appendChild(card);
+
   return w;
 }
-
-function modalAddIng(){
-  var f={name:'',type:'วัตถุดิบ',unit:'กรัม',stock:'',cpu:'',minStock:''};
-  var nI=mkI({pl:'ชื่อรายการ'});nI.addEventListener('input',function(e){f.name=e.target.value});
-  var tE=mkSel([{l:'วัตถุดิบ',v:'วัตถุดิบ'},{l:'แพคเกจจิ้ง',v:'แพคเกจจิ้ง'}],'วัตถุดิบ',function(e){f.type=e.target.value});
-  var uE=mkSel([{l:'กรัม',v:'กรัม'},{l:'มล.',v:'มล.'},{l:'ชิ้น',v:'ชิ้น'}],'กรัม',function(e){f.unit=e.target.value});
-  var sI=mkI({type:'number',pl:'0'});sI.addEventListener('input',function(e){f.stock=e.target.value});
-  var mI=mkI({type:'number',pl:'0'});mI.addEventListener('input',function(e){f.minStock=e.target.value});
-  var cI=mkI({type:'number',pl:'0.00'});cI.addEventListener('input',function(e){f.cpu=e.target.value});
-  var btn=el('button',{cls:'btn btn-primary',txt:'บันทึก',style:{width:'100%'},
-    onClick:async function(){
-      if(!f.name)return toast('กรอกชื่อด้วย','#e11d48');
-      this.disabled=true;
-      await SB.from('ingredients').insert([{name:f.name,type:f.type,unit:f.unit,stock:+f.stock||0,cost_per_unit:+f.cpu||0,min_stock:+f.minStock||0,yield_per_batch:1}]);
-      closeModal();toast('✓ เพิ่มรายการสำเร็จ');await reload();
-    }
-  });
-  openModal('เพิ่มวัตถุดิบ',el('div',{style:{display:'flex',flexDirection:'column',gap:'12px'}},
-    mkF('ชื่อรายการ',nI,true),el('div',{cls:'grid2'},mkF('ประเภท',tE),mkF('หน่วย',uE)),
-    el('div',{cls:'grid2'},mkF('ยอดยกมา',sI),mkF('แจ้งเตือนต่ำกว่า',mI)),
-    mkF('ต้นทุน/หน่วย (฿)',cI),btn));
-}
-
 function modalReceive(){
   var f={ingId:'',qty:'',mult:1,price:''};
   var cont=el('div',{style:{display:'flex',flexDirection:'column',gap:'12px'}});
