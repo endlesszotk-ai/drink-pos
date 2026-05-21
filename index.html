@@ -569,7 +569,8 @@ var DEF_SETTINGS={
   shopName:'ร้านชาไทย',logoUrl:'',
   address:'123 ถนนตัวอย่าง กรุงเทพฯ\nโทร 02-xxx-xxxx',
   footer:'ขอบคุณที่ใช้บริการ 🙏',
-  autoPrint:true,paper:'80mm'
+  autoPrint:true,paper:'80mm',
+  pkgCost:0                          // ← Sprint 11.5: ต้นทุนบรรจุภัณฑ์เฉลี่ย/แก้ว
 };
 function loadS(){try{return Object.assign({},DEF_SETTINGS,JSON.parse(localStorage.getItem('pos_s')||'{}'))}catch(e){return Object.assign({},DEF_SETTINGS)}}
 function saveS(o){localStorage.setItem('pos_s',JSON.stringify(o))}
@@ -598,7 +599,7 @@ var ALL_PAGES=[
 /* ════ STATE ════ */
 var S={
   page:'pos', staff:null, staffList:[],
-  ings:[], wips:[], recipes:[], adjs:[], orders:[], expenses:[],
+  ings:[], wips:[], recipes:[], adjs:[], orders:[], expenses:[], snapshots:[],
   platforms:[], platPrices:[], shift:null, shifts:[],
   orderType:'storefront', platId:null, payMethod:'cash',
   cart:[], gpPct:0, adsDsc:0,
@@ -672,18 +673,19 @@ async function fetchAll(){
   try{
     var isAdmin=S.staff&&S.staff.role==='admin';
     var qs=[
-      SB.from('ingredients').select('*').order('name'),
-      SB.from('recipes').select('*').order('name'),
-      SB.from('recipe_lines').select('*'),
-      SB.from('orders').select('*').order('created_at',{ascending:false}).limit(300),
-      SB.from('adjustments').select('*').order('created_at',{ascending:false}).limit(200),
-      SB.from('platforms').select('*').order('id'),
-      SB.from('platform_prices').select('*'),
-      SB.from('shifts').select('*').order('opened_at',{ascending:false}).limit(60),
-      SB.from('wip_formulas').select('*'),
-      SB.from('expenses').select('*').order('created_at',{ascending:false}).limit(100)
-    ];
-    if(isAdmin)qs.push(SB.from('staff').select('*').order('id'));
+  SB.from('ingredients').select('*').order('name'),
+  SB.from('recipes').select('*').order('name'),
+  SB.from('recipe_lines').select('*'),
+  SB.from('orders').select('*').order('created_at',{ascending:false}).limit(300),
+  SB.from('adjustments').select('*').order('created_at',{ascending:false}).limit(200),
+  SB.from('platforms').select('*').order('id'),
+  SB.from('platform_prices').select('*'),
+  SB.from('shifts').select('*').order('opened_at',{ascending:false}).limit(60),
+  SB.from('wip_formulas').select('*'),
+  SB.from('expenses').select('*').order('created_at',{ascending:false}).limit(100),
+  SB.from('daily_snapshots').select('*').order('closed_at',{ascending:false}).limit(60)
+];
+if(isAdmin)qs.push(SB.from('staff').select('*').order('id'));
     var res=await Promise.all(qs);
     var r1=res[0],r2=res[1],r3=res[2],r4=res[3],r5=res[4],
         r6=res[5],r7=res[6],r8=res[7],r9=res[8];
@@ -720,10 +722,19 @@ async function fetchAll(){
         date:new Date(o.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
       };
     });
-    S.adjs=(r5.data||[]).map(function(a){
-      return{id:a.id,ingName:a.ing_name,type:a.type,qty:+a.qty,unit:a.unit,
-             reason:a.reason,date:new Date(a.created_at).toLocaleDateString('th-TH')};
-    });
+   S.adjs=(r5.data||[]).map(function(a){
+  return{
+    id:a.id,
+    ingId:a.ingredient_id,
+    ingName:a.ing_name,
+    type:a.type,
+    qty:+a.qty,
+    unit:a.unit,
+    reason:a.reason,
+    createdAt:a.created_at,        // ← Sprint 11.5: ต้องใช้กรอง waste ของกะ
+    date:new Date(a.created_at).toLocaleDateString('th-TH')
+  };
+});
     S.platforms=(r6.data||[]).map(function(p){
       return{id:p.id,name:p.name,gp:+p.gp_percent,active:p.active};
     });
@@ -752,8 +763,32 @@ async function fetchAll(){
         createdAt:x.created_at
       };
     });
-    // staff query เลื่อนจาก res[9] → res[10] เพราะ expenses แทรกเข้ามาที่ res[9]
-    if(isAdmin&&res[10])S.staffList=res[10].data||[];
+    // Sprint 11.5: โหลด immutable snapshots
+S.snapshots=(res[10].data||[]).map(function(s){
+  return{
+    id:s.id,
+    shiftId:s.shift_id,
+    closedAt:s.closed_at,
+    orderCount:s.order_count,
+    grossSales:+s.gross_sales,
+    netSales:+s.net_sales,
+    cogs:+s.cogs,
+    gpFee:+s.gp_fee,
+    adsDsc:+s.ads_discount,
+    ptsDsc:+s.points_discount,
+    extraDsc:+s.extra_discount,
+    opex:+s.opex,
+    wasteValue:+s.waste_value,
+    trueNetProfit:+s.true_net_profit,
+    operatingNet:+s.operating_net,
+    cashDiff:+s.cash_diff,
+    note:s.note,
+    payload:s.payload
+  };
+});
+
+// staff query เลื่อนจาก res[10] → res[11] เพราะ daily_snapshots แทรกที่ res[10]
+if(isAdmin&&res[11])S.staffList=res[11].data||[];
     if(S.orderType==='delivery'){
       if(!S.platId){var ap=S.platforms.filter(function(p){return p.active});if(ap.length)S.platId=ap[0].id}
       if(S.platId){var pl=S.platforms.find(function(p){return p.id===S.platId});if(pl)S.gpPct=pl.gp}
@@ -769,7 +804,15 @@ function $(id){return document.getElementById(id)}
 function fmtB(n){return '฿'+Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function fmtC(n){return '฿'+Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:4})}
 function fmtDT(iso){if(!iso)return'-';var d=new Date(iso);return d.toLocaleDateString('th-TH',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}
-function recipeCost(lines){return lines.reduce(function(s,l){var i=S.ings.find(function(x){return x.id===l.ingId});return s+(i?i.cpu*+l.qty:0)},0)}
+// Sprint 11.5: บวก packaging cost ต่อแก้วเข้าไปใน "ต้นทุน/แก้ว"
+// ทำให้ดิสเพลย์ในหน้า Recipe และ COGS ใน doCheckout สะท้อนต้นทุนจริง
+function recipeCost(lines){
+  var ingCost=lines.reduce(function(s,l){
+    var i=S.ings.find(function(x){return x.id===l.ingId});
+    return s+(i?i.cpu*+l.qty:0);
+  },0);
+  return ingCost+(+S.settings.pkgCost||0);
+}
 function parseItems(str){if(!str)return[];return str.split(',').map(function(s){s=s.trim();var m=s.match(/^(.+?)\s*x(\d+)$/i);return m?{name:m[1].trim(),qty:+m[2]}:{name:s,qty:1}})}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function pmLabel(id){var p=PM.find(function(x){return x.id===id});return p?p.lb:'💵 เงินสด'}
@@ -1646,16 +1689,112 @@ function updQty(id,delta){
 /* ── CHECKOUT ── */
 async function doCheckout(e,gross,net){
   if(!S.cart.length)return;
-  var btn=e.currentTarget;btn.disabled=true;btn.textContent='กำลังบันทึก...';
-  var stockDed={},cogs=0;
+  var btn=e.currentTarget;
+  btn.disabled=true;btn.textContent='กำลังบันทึก...';
+
+  // ── 1) คำนวณ stock deduction + COGS (รวม packaging cost) ──
+  var stockDed={},cogs=0,totalCups=0;
   S.cart.forEach(function(ci){
     var r=S.recipes.find(function(x){return x.id===ci.id});
-    if(r){cogs+=recipeCost(r.lines)*ci.qty;r.lines.forEach(function(l){stockDed[l.ingId]=(stockDed[l.ingId]||0)+(l.qty*ci.qty)});}
+    if(!r)return;
+    cogs+=recipeCost(r.lines)*ci.qty;   // recipeCost รวม pkgCost แล้ว
+    totalCups+=ci.qty;
+    r.lines.forEach(function(l){
+      stockDed[l.ingId]=(stockDed[l.ingId]||0)+(l.qty*ci.qty);
+    });
   });
+
   try{
     var items=S.cart.map(function(i){return i.name+' x'+i.qty}).join(', ');
     var ptsEarned=S.member?Math.floor(gross/POINTS_RATE):0;
     var ptsUsed=S.member?S.ptsUse:0;
+
+    // ── 2) Insert order (ดึง id กลับมาเพื่อ audit trail) ──
+    var orderRes=await SB.from('orders').insert([{
+      type:S.orderType,
+      items:items,
+      total:net,
+      gross:gross,
+      net:net,
+      cogs:cogs,
+      gp_percent:S.gpPct,
+      ads_discount:S.adsDsc,
+      payment_method:S.payMethod,
+      shift_id:S.shift?S.shift.id:null,
+      staff_id:S.staff?S.staff.id:null,
+      member_id:S.member?S.member.id:null,
+      platform_id:S.orderType==='delivery'&&S.platId?S.platId:null,
+      points_earned:ptsEarned,
+      points_used:ptsUsed,
+      discount_amount:(S.extraDsc||0)+(ptsUsed*POINT_VAL),
+      discount_reason:S.extraDscReason||null
+    }]).select().single();
+    if(orderRes.error)throw orderRes.error;
+    var orderId=orderRes.data.id;
+
+    // ── 3) Strict Inventory Ledger: bulk insert adjustments (type=Sales) ──
+    // หมายเหตุ: รวมเป็น 1 request เดียวเพื่อกัน supabase ค้านช่วง rush hour
+    var adjRows=Object.keys(stockDed).map(function(ingId){
+      var ing=S.ings.find(function(x){return x.id===+ingId});
+      return{
+        ingredient_id:+ingId,
+        ing_name:ing?ing.name:'(unknown)',
+        type:'Sales',
+        qty:stockDed[ingId],
+        unit:ing?ing.unit:'',
+        reason:'ขายอัตโนมัติ - Order #'+orderId
+      };
+    });
+    if(adjRows.length){
+      var adjRes=await SB.from('adjustments').insert(adjRows);
+      if(adjRes.error)throw adjRes.error;
+    }
+
+    // ── 4) หักสต็อก: parallel updates (ลดเวลา rush hour) ──
+    await Promise.all(Object.keys(stockDed).map(function(ingId){
+      var ing=S.ings.find(function(x){return x.id===+ingId});
+      if(!ing)return Promise.resolve();
+      var newStock=Math.max(0,ing.stock-stockDed[ingId]);
+      return SB.from('ingredients').update({stock:newStock}).eq('id',ing.id);
+    }));
+
+    // ── 5) Update member points + tier ──
+    var newMemberPts=null;
+    if(S.member){
+      newMemberPts=Math.max(0,(S.member.points||0)+ptsEarned-ptsUsed);
+      var newTotalSpent=(S.member.total_spent||0)+net;
+      var newTier='bronze';
+      if(newTotalSpent>=50000)newTier='platinum';
+      else if(newTotalSpent>=20000)newTier='gold';
+      else if(newTotalSpent>=5000)newTier='silver';
+      await SB.from('members').update({
+        points:newMemberPts,
+        total_spent:newTotalSpent,
+        tier:newTier,
+        last_visit:new Date().toISOString()
+      }).eq('id',S.member.id);
+    }
+
+    // ── 6) Reset cart + print + reload ──
+    var snap={
+      type:S.orderType,items:items,gross:gross,net:net,total:net,
+      gpPct:S.gpPct,payMethod:S.payMethod,
+      staffName:S.staff?S.staff.name:null,
+      memberName:S.member?S.member.name:null,memberPts:newMemberPts,
+      ptsEarned:ptsEarned,ptsUsed:ptsUsed,
+      dscAmt:S.extraDsc,dscReason:S.extraDscReason
+    };
+    Object.assign(S,{cart:[],adsDsc:0,extraDsc:0,extraDscReason:'',
+      ptsUse:0,member:null,memberPhone:'',memberNotFound:false,showDscForm:false});
+    if(S.settings.autoPrint)printR(snap);
+    toast('✓ บันทึกสำเร็จ'+(ptsEarned>0?' 🌟 +'+ptsEarned+' แต้ม':''));
+    await reload();
+  }catch(err){
+    console.error(err);
+    alert('Error: '+(err.message||err));
+    btn.disabled=false;btn.textContent='✅ ยืนยันคำสั่งซื้อ';
+  }
+}
 
     // Insert order — total = netRevenue (as per SQL View using o.total)
     var r=await SB.from('orders').insert([{
@@ -1790,15 +1929,110 @@ function pgShift(){
     clBox.appendChild(mkCashCounter(actI,updD));
     clBox.appendChild(dPrev);
     clBox.appendChild(mkF('หมายเหตุ',noteI));
-    clBox.appendChild(el('button',{cls:'btn btn-danger',txt:'🔒 ยืนยันปิดกะ',style:{width:'100%',fontSize:'1rem',padding:'13px'},
-      onClick:async function(){
-        if(!actI.value)return toast('กรุณากรอกยอดเงินจริง','#e11d48');
-        this.disabled=true;
-        var act=+actI.value;
-        await SB.from('shifts').update({status:'closed',closed_at:new Date().toISOString(),closing_cash:act,expected_cash:expCash,note:noteI.value||null}).eq('id',cs.id);
-        toast('✓ ปิดกะเรียบร้อย');await reload();
+    clBox.appendChild(el('button',{cls:'btn btn-danger',txt:'🔒 ยืนยันปิดกะ',
+  style:{width:'100%',fontSize:'1rem',padding:'13px'},
+  onClick:async function(){
+    if(!actI.value)return toast('กรุณากรอกยอดเงินจริง','#e11d48');
+    this.disabled=true;
+    var btnRef=this;
+
+    try{
+      var act=+actI.value;
+      var nowIso=new Date().toISOString();
+
+      // ── 1) คำนวณสรุปยอดของกะนี้ (Immutable Snapshot) ──
+      var openedAtMs=new Date(cs.openedAt).getTime();
+
+      var sumGross=0,sumNet=0,sumCogs=0,sumGpFee=0;
+      var sumPtsDsc=0,sumExtraDsc=0,sumAdsDsc=0;
+      shOrders.forEach(function(o){
+        var oGross=+o.gross||+o.net||0;
+        var oNet=+o.net||+o.total||0;
+        var oCogs=+o.cogs||0;
+        var oGpFee=oGross*(+o.gpPct||0)/100;
+        var oPts=(+o.ptsUsed||0)*POINT_VAL;
+        var oDscAmt=+o.dscAmt||0;
+        var oExtra=Math.max(0,oDscAmt-oPts);
+        var oAds=Math.max(0,oGross-oNet-oGpFee-oPts-oExtra);
+        sumGross+=oGross; sumNet+=oNet; sumCogs+=oCogs;
+        sumGpFee+=oGpFee; sumAdsDsc+=oAds;
+        sumPtsDsc+=oPts; sumExtraDsc+=oExtra;
+      });
+
+      // OPEX ของกะนี้ (กรองตาม createdAt)
+      var shiftOpex=(S.expenses||[]).filter(function(x){
+        return new Date(x.createdAt).getTime()>=openedAtMs;
+      }).reduce(function(s,x){return s+(+x.amount||0)},0);
+
+      // Waste value ของกะนี้
+      var shiftWaste=(S.adjs||[]).filter(function(a){
+        if(!a.createdAt)return false;
+        if(new Date(a.createdAt).getTime()<openedAtMs)return false;
+        return a.type==='Damage/Waste'||a.type==='Expired/Spoilage';
+      }).reduce(function(s,a){
+        var ing=S.ings.find(function(i){return i.name===a.ingName});
+        return s+(ing?(+a.qty||0)*(+ing.cpu||0):0);
+      },0);
+
+      var trueNet=sumGross-sumCogs-sumGpFee-sumAdsDsc-sumPtsDsc-sumExtraDsc;
+      var operatingNet=trueNet-shiftOpex-shiftWaste;
+      var diff=act-expCash;
+
+      // ── 2) Update shift status ──
+      var shRes=await SB.from('shifts').update({
+        status:'closed',
+        closed_at:nowIso,
+        closing_cash:act,
+        expected_cash:expCash,
+        note:noteI.value||null
+      }).eq('id',cs.id);
+      if(shRes.error)throw shRes.error;
+
+      // ── 3) INSERT immutable snapshot (audit-ready ground truth) ──
+      var snapRes=await SB.from('daily_snapshots').insert([{
+        shift_id:cs.id,
+        closed_at:nowIso,
+        order_count:shOrders.length,
+        gross_sales:sumGross,
+        net_sales:sumNet,
+        cogs:sumCogs,
+        gp_fee:sumGpFee,
+        ads_discount:sumAdsDsc,
+        points_discount:sumPtsDsc,
+        extra_discount:sumExtraDsc,
+        opex:shiftOpex,
+        waste_value:shiftWaste,
+        true_net_profit:trueNet,
+        operating_net:operatingNet,
+        opening_cash:cs.openCash||0,
+        closing_cash:act,
+        expected_cash:expCash,
+        cash_diff:diff,
+        staff_id:S.staff?S.staff.id:null,
+        note:noteI.value||null,
+        payload:{
+          orders:shOrders.length,
+          payment_methods:pmT,
+          pkgCost:+S.settings.pkgCost||0,
+          generated_by:S.staff?S.staff.name:'unknown',
+          version:'sprint-11.5'
+        }
+      }]);
+      // ถ้า snapshot ซ้ำ (UNIQUE shift_id) ก็ไม่ต้อง throw — shift ปิดสำเร็จแล้ว
+      if(snapRes.error&&snapRes.error.code!=='23505'){
+        console.warn('Snapshot insert warning:',snapRes.error);
+        toast('⚠️ ปิดกะแล้วแต่ snapshot บันทึกไม่สมบูรณ์','#f59e0b');
+      }else{
+        toast('🔒 ปิดกะเรียบร้อย — สรุปยอดถูกแช่แข็งแล้ว');
       }
-    }));
+      await reload();
+    }catch(err){
+      console.error(err);
+      toast('ปิดกะไม่สำเร็จ: '+(err.message||err),'#e11d48');
+      btnRef.disabled=false;
+    }
+  }
+}));
     sb.appendChild(clBox);
   }else{
     sb.appendChild(el('div',{cls:'shift-banner s-closed'},el('span',{txt:'⚫ ยังไม่มีกะที่เปิดอยู่'})));
@@ -2870,12 +3104,35 @@ function pgSettings(){
   var paperSel=mkSel([{l:'80mm (ทั่วไป)',v:'80mm'},{l:'58mm (เล็ก)',v:'58mm'}],s.paper,function(e){s.paper=e.target.value});
   var autoLbl=el('label',{style:{display:'flex',alignItems:'center',gap:'10px',cursor:'pointer',fontWeight:700}});
   var autoChk=document.createElement('input');autoChk.type='checkbox';autoChk.checked=s.autoPrint;autoChk.style.cssText='width:18px;height:18px;accent-color:var(--gold);flex-shrink:0';
-  autoLbl.appendChild(autoChk);autoLbl.appendChild(el('span',{txt:'พิมพ์ใบเสร็จอัตโนมัติ',style:{fontSize:'.9rem'}}));
+  autoLbl.appendChild(autoChk);autoLbl.appendChild(el('span',{txt:'พิมพ์ใบเสร็จอัตโนมัติ',style:{fontSize:'.9rem'}}));// Sprint 11.5: ต้นทุนบรรจุภัณฑ์ต่อแก้ว
+var pkgI=mkI({type:'number',val:String(s.pkgCost||0),pl:'0.00',step:'0.01'});
   rb.appendChild(mkF('ชื่อร้าน',nameI));rb.appendChild(mkF('URL โลโก้ (ถ้ามี)',logoI));rb.appendChild(mkF('ที่อยู่ / เบอร์โทร',addrTA));rb.appendChild(mkF('ข้อความท้ายใบเสร็จ',footTA));
+  rb.appendChild(el('div',{style:{
+  background:'#fff7ed',border:'1.5px solid #fed7aa',
+  borderRadius:'10px',padding:'12px 14px'}},
+  el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}},
+    el('span',{txt:'📦',style:{fontSize:'1.1rem'}}),
+    el('span',{txt:'ต้นทุนบรรจุภัณฑ์เฉลี่ย/แก้ว (Packaging Cost)',
+      style:{fontWeight:800,fontSize:'.88rem',color:'#9a3412'}})
+  ),
+  el('p',{txt:'แก้ว + ฝา + หลอด + ถุง รวมต่อ 1 แก้ว — จะถูกบวกเข้า COGS ของทุกออเดอร์',
+    style:{margin:'0 0 8px',color:'#9a3412',fontSize:'.75rem',lineHeight:1.5}}),
+  mkF('฿ ต่อแก้ว',pkgI)
+));
   rb.appendChild(el('div',{cls:'grid2'},mkF('ขนาดกระดาษ',paperSel),el('div',{style:{paddingTop:'22px'}},autoLbl)));
   rb.appendChild(el('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap'}},
     el('button',{cls:'btn btn-primary',txt:'💾 บันทึกการตั้งค่า',
-      onClick:function(){s.shopName=nameI.value.trim()||'ร้านชาไทย';s.logoUrl=logoI.value.trim();s.address=addrTA.value.trim();s.footer=footTA.value.trim();s.autoPrint=autoChk.checked;s.paper=paperSel.value;saveS(s);toast('✓ บันทึกการตั้งค่าแล้ว')}}),
+  onClick:function(){
+  s.shopName=nameI.value.trim()||'ร้านชาไทย';
+  s.logoUrl=logoI.value.trim();
+  s.address=addrTA.value.trim();
+  s.footer=footTA.value.trim();
+  s.autoPrint=autoChk.checked;
+  s.paper=paperSel.value;
+  s.pkgCost=+pkgI.value||0;                    // ← Sprint 11.5
+  saveS(s);
+  toast('✓ บันทึกการตั้งค่าแล้ว — ต้นทุนบรรจุภัณฑ์จะถูกบวกในออเดอร์ใหม่');
+}
     el('button',{cls:'btn btn-ghost',txt:'🖨️ ทดสอบพิมพ์',
       onClick:function(){printR({type:'storefront',items:'ชาไทยเย็น x2',gross:90,net:90,total:90,gpPct:0,payMethod:'cash',staffName:S.staff?S.staff.name:'Test',memberName:'ลูกค้า VIP',memberPts:52,ptsEarned:1,ptsUsed:0,dscAmt:0,dscReason:''})}})
   ));
