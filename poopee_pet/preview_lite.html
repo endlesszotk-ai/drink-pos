@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Poopee Desktop Pet — Preview</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:100vw;height:100vh;overflow:hidden;
+  background:radial-gradient(ellipse at 30% 40%,#1a2a4a,#0d1520 70%);
+  font-family:"Segoe UI",Tahoma,sans-serif;user-select:none;cursor:default}
+
+/* ── Desktop icons (decorative) ── */
+.icon{position:absolute;text-align:center;color:rgba(255,255,255,.6);font-size:11px;cursor:pointer}
+.icon:hover{color:#fff}.icon span{font-size:28px;display:block}
+
+/* ── Taskbar ── */
+#bar{position:fixed;bottom:0;left:0;right:0;height:44px;
+  background:rgba(15,25,45,.93);backdrop-filter:blur(14px);
+  border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;
+  padding:0 12px;gap:8px;z-index:100}
+#bar-start{width:32px;height:32px;border-radius:6px;
+  background:linear-gradient(135deg,#0078d4,#00b4d8);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;cursor:pointer}
+#bar-clock{margin-left:auto;color:#ccc;font-size:12px;text-align:right;line-height:1.4}
+
+/* ── Cat widget ── */
+#pet{position:fixed;cursor:grab;z-index:200;touch-action:none;
+  display:flex;flex-direction:column;align-items:center}
+#pet:active{cursor:grabbing}
+
+/* CSS tuxedo cat */
+.cat{position:relative;transform-origin:bottom center;transition:transform .15s}
+/* body */
+.cat-body{width:72px;height:64px;background:#2b2b2b;border-radius:40% 40% 46% 46%;
+  position:relative;margin:0 auto}
+/* white belly */
+.cat-body::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);
+  width:36px;height:40px;background:#f5f5f5;border-radius:50% 50% 46% 46%}
+/* head */
+.cat-head{width:62px;height:58px;background:#2b2b2b;border-radius:50% 50% 46% 46%;
+  position:relative;margin:0 auto;margin-bottom:-6px;z-index:2}
+/* white face patch */
+.cat-head::after{content:"";position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+  width:28px;height:24px;background:#f0f0f0;border-radius:50%}
+/* ears */
+.ear{position:absolute;top:-14px;width:0;height:0}
+.ear-l{left:6px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid #2b2b2b}
+.ear-r{right:6px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid #2b2b2b}
+.ear-l::after,.ear-r::after{content:"";position:absolute;top:4px;left:-5px;
+  width:0;height:0;border-left:5px solid transparent;
+  border-right:5px solid transparent;border-bottom:12px solid #d08080}
+/* eyes */
+.eyes{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  display:flex;gap:14px;z-index:3}
+.eye{width:8px;height:8px;background:#1a8c1a;border-radius:50%;position:relative}
+.eye::after{content:"";position:absolute;top:1px;left:2px;
+  width:4px;height:6px;background:#111;border-radius:50%}
+/* nose */
+.nose{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  width:6px;height:4px;background:#e07070;border-radius:50%;z-index:3}
+/* whiskers */
+.whiskers{position:absolute;bottom:14px;width:100%;z-index:3}
+.whisker{position:absolute;height:1px;background:rgba(255,255,255,.5)}
+.w1{width:22px;top:0;left:4px;transform:rotate(-8deg)}
+.w2{width:22px;top:5px;left:4px;transform:rotate(5deg)}
+.w3{width:22px;top:0;right:4px;transform:rotate(8deg)}
+.w4{width:22px;top:5px;right:4px;transform:rotate(-5deg)}
+/* tail */
+.tail{position:absolute;right:-12px;bottom:8px;
+  width:14px;height:48px;background:#2b2b2b;
+  border-radius:8px 8px 12px 4px;transform:rotate(18deg);transform-origin:bottom}
+/* paws */
+.paws{display:flex;justify-content:center;gap:12px;margin-top:-4px}
+.paw{width:18px;height:10px;background:#2b2b2b;border-radius:50%;position:relative}
+.paw::after{content:"";position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);
+  width:14px;height:6px;background:#f5f5f5;border-radius:50%}
+
+/* pose variations */
+.pose-walk .cat-body{transform:rotate(-6deg) translateY(4px)}
+.pose-walk .cat-head{transform:rotate(6deg)}
+.pose-sleep .cat{transform:scaleX(1.4) scaleY(.55) translateY(16px)}
+.pose-sleep .cat-head{transform:rotate(90deg) translateX(-10px)}
+.pose-sit .cat-body{transform:scaleY(.85)}
+.pose-peek .cat-body{transform:scaleY(.3) translateY(20px)}
+.pose-peek .cat-head{transform:translateY(8px)}
+.pose-surprised .cat{transform:rotate(-15deg) scaleY(.7) translateY(8px)}
+
+/* scale wrapper */
+#pet-scale{transition:transform .25s}
+
+/* ── Speech bubble ── */
+#bubble{position:fixed;z-index:300;display:none;max-width:260px;min-width:120px;
+  background:rgba(255,255,255,.97);border:2px solid #222;border-radius:16px;
+  padding:10px 14px;font-size:13px;line-height:1.6;color:#111;
+  box-shadow:0 4px 20px rgba(0,0,0,.35);pointer-events:none;
+  opacity:0;transition:opacity .3s}
+#bubble.show{opacity:1}
+#bubble::after{content:"";position:absolute;bottom:-12px;left:22px;
+  border:6px solid transparent;border-top-color:#222}
+#bubble::before{content:"";position:absolute;bottom:-9px;left:23px;
+  border:5px solid transparent;border-top-color:rgba(255,255,255,.97);z-index:1}
+
+/* ── Context menu ── */
+#menu{position:fixed;z-index:500;display:none;
+  background:rgba(246,247,251,.97);backdrop-filter:blur(16px);
+  border:1px solid rgba(0,0,0,.12);border-radius:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.22);padding:4px 0;min-width:176px;font-size:13px}
+.mi{padding:7px 16px;cursor:pointer;white-space:nowrap;color:#111;position:relative;display:flex;align-items:center;gap:6px}
+.mi:hover{background:rgba(0,100,220,.1)}
+.mi.arrow::after{content:"▶";position:absolute;right:10px;font-size:9px;opacity:.45}
+.msep{height:1px;background:rgba(0,0,0,.1);margin:3px 0}
+.sub{position:absolute;left:100%;top:0;display:none;
+  background:rgba(246,247,251,.97);backdrop-filter:blur(16px);
+  border:1px solid rgba(0,0,0,.12);border-radius:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.22);padding:4px 0;min-width:150px}
+.mi:hover>.sub{display:block}
+
+/* ── Chat dialog ── */
+#dlg{position:fixed;z-index:600;display:none;width:300px;
+  background:#f3f3f3;border:1px solid #999;border-radius:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden}
+#dlg-title{background:linear-gradient(90deg,#0050c8,#0078d4);color:#fff;
+  padding:7px 12px;font-size:13px;font-weight:600;
+  cursor:move;display:flex;justify-content:space-between;align-items:center}
+#dlg-body{padding:14px}
+#dlg-label{font-size:13px;color:#222;margin-bottom:7px}
+#dlg-input{width:100%;border:1px solid #aaa;border-radius:4px;
+  padding:6px 8px;font-size:13px;outline:none;font-family:inherit}
+#dlg-input:focus{border-color:#0078d4;box-shadow:0 0 0 2px rgba(0,120,212,.2)}
+.dbtn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.dbtn{padding:5px 16px;border-radius:4px;border:1px solid #aaa;font-size:12px;cursor:pointer;font-family:inherit}
+.dbtn.ok{background:#0078d4;color:#fff;border-color:#0078d4}.dbtn.ok:hover{background:#005fa3}
+.dbtn.cancel{background:#f0f0f0}.dbtn.cancel:hover{background:#ddd}
+
+/* status */
+#status{position:fixed;top:10px;right:14px;color:rgba(255,255,255,.35);
+  font-size:11px;pointer-events:none;z-index:50}
+</style>
+</head>
+<body>
+
+<!-- Desktop icons -->
+<div class="icon" style="left:20px;top:20px"><span>📁</span>โฟลเดอร์</div>
+<div class="icon" style="left:20px;top:90px"><span>🗑️</span>ถังขยะ</div>
+
+<!-- Taskbar -->
+<div id="bar">
+  <div id="bar-start">⊞</div>
+  <div style="width:1px;height:24px;background:rgba(255,255,255,.15)"></div>
+  <div style="color:rgba(255,255,255,.7);font-size:12px;cursor:pointer">🐾 Poopee Pet</div>
+  <div id="bar-clock"></div>
+</div>
+
+<!-- Status -->
+<div id="status">idle_sleepy</div>
+
+<!-- Pet -->
+<div id="pet" style="left:220px;top:280px">
+  <div id="pet-scale">
+    <div id="cat-pose" class="pose-sit">
+      <div class="cat">
+        <div class="cat-head">
+          <div class="ear ear-l"></div>
+          <div class="ear ear-r"></div>
+          <div class="eyes"><div class="eye"></div><div class="eye"></div></div>
+          <div class="nose"></div>
+          <div class="whiskers">
+            <div class="whisker w1"></div><div class="whisker w2"></div>
+            <div class="whisker w3"></div><div class="whisker w4"></div>
+          </div>
+        </div>
+        <div class="cat-body"><div class="tail"></div></div>
+        <div class="paws"><div class="paw"></div><div class="paw"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bubble -->
+<div id="bubble"></div>
+
+<!-- Context menu -->
+<div id="menu">
+  <div class="mi arrow">เปลี่ยนท่า
+    <div class="sub" id="pose-sub"></div>
+  </div>
+  <div class="mi arrow">ขนาด
+    <div class="sub">
+      <div class="mi" onclick="setScale(.75)">75%</div>
+      <div class="mi" onclick="setScale(1)">100%</div>
+      <div class="mi" onclick="setScale(1.25)">125%</div>
+      <div class="mi" onclick="setScale(1.5)">150%</div>
+    </div>
+  </div>
+  <div class="mi" id="top-mi" onclick="toggleTop()">Always on Top ✓</div>
+  <div class="mi" onclick="openChat();hideMenu()">💬 คุยกับโปสตี้</div>
+  <div class="msep"></div>
+  <div class="mi" onclick="quit()" style="color:#c00">❌ ออกจากแอป</div>
+</div>
+
+<!-- Chat dialog -->
+<div id="dlg">
+  <div id="dlg-title">
+    <span>🐱 คุยกับโปสตี้</span>
+    <span onclick="closeChat()" style="cursor:pointer;font-size:15px">✕</span>
+  </div>
+  <div id="dlg-body">
+    <div id="dlg-label">อยากบอกอะไรโปสตี้?</div>
+    <input id="dlg-input" type="text" placeholder="พิมพ์ที่นี่…" autocomplete="off">
+    <div class="dbtn-row">
+      <button class="dbtn cancel" onclick="closeChat()">ยกเลิก</button>
+      <button class="dbtn ok" onclick="submitChat()">ตกลง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const POSES = {
+  idle_sleepy:'pose-sit', idle_front:'pose-sit', walk:'pose-walk', walk2:'pose-walk',
+  walk3:'pose-walk', stand:'pose-sit', peek:'pose-peek', sit_alert:'pose-sit',
+  sit_side:'pose-sit', sit_yawn:'pose-sit', crouch:'pose-sit',
+  crouch_yawn:'pose-sit', curl_sleep:'pose-sleep', sleep_side:'pose-sleep',
+  sleep_stretch:'pose-sleep', sleep_long_left:'pose-sleep', sleep_low_left:'pose-sleep',
+  sleep_low_right:'pose-sleep', surprised:'pose-surprised', sleep_flat:'pose-sleep',
+  sleep_roll:'pose-sleep', sleep_back:'pose-sleep', sleep_curl2:'pose-sleep',
+};
+const IDLE_POOL = ['idle_sleepy','walk','peek','sleep_side','curl_sleep','surprised','stand'];
+const REPLIES = [
+  'เมี๊ยว~ ตอนนี้ยังไม่ได้ต่อ API นะ','โปสตี้รับทราบแล้ว เดี๋ยวให้ต่อสมองก่อนนะ',
+  'แง่ว… ขอ GEMINI_API_KEY ก่อน แล้วจะฉลาดขึ้น!',
+  'เข้าใจแล้วเมี๊ยว แต่ตอนนี้ยังเป็นโหมดทดลองอยู่',
+  'ถามมาดีมากเลย แต่ขอ API key ก่อนนะจ๊ะ ~',
+];
+
+let pose='idle_sleepy', scale=1, alwaysTop=true;
+let bubTimer=null, dragging=false, ox=0,oy=0;
+
+const pet=document.getElementById('pet');
+const catPose=document.getElementById('cat-pose');
+const scaleEl=document.getElementById('pet-scale');
+const bubble=document.getElementById('bubble');
+const menu=document.getElementById('menu');
+const status=document.getElementById('status');
+
+function setPose(p){
+  pose=p;
+  catPose.className=POSES[p]||'pose-sit';
+  status.textContent=p;
+  hideMenu();
+}
+function setScale(s){scale=s;scaleEl.style.transform=`scale(${s})`;hideMenu();}
+function hideMenu(){menu.style.display='none';}
+
+function showBubble(txt,ms=8000){
+  clearTimeout(bubTimer);
+  bubble.textContent=txt;
+  const r=pet.getBoundingClientRect();
+  bubble.style.left=r.left+'px';
+  bubble.style.top=Math.max(10,r.top-80)+'px';
+  bubble.style.display='block';
+  requestAnimationFrame(()=>bubble.classList.add('show'));
+  bubTimer=setTimeout(()=>{bubble.classList.remove('show');setTimeout(()=>bubble.style.display='none',300);},ms);
+}
+
+// Build pose submenu
+const sub=document.getElementById('pose-sub');
+Object.keys(POSES).forEach(p=>{
+  const d=document.createElement('div');d.className='mi';d.textContent=p;
+  d.onclick=()=>setPose(p);sub.appendChild(d);
+});
+
+// Drag
+pet.addEventListener('mousedown',e=>{if(e.button!==0)return;dragging=true;ox=e.clientX-pet.offsetLeft;oy=e.clientY-pet.offsetTop;pet.style.transition='none';});
+document.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const mx=window.innerWidth-pet.offsetWidth, my=window.innerHeight-pet.offsetHeight-44;
+  pet.style.left=Math.max(0,Math.min(mx,e.clientX-ox))+'px';
+  pet.style.top =Math.max(0,Math.min(my,e.clientY-oy))+'px';
+});
+document.addEventListener('mouseup',()=>dragging=false);
+pet.addEventListener('dblclick',()=>openChat());
+
+// Right-click
+pet.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  menu.style.display='block';
+  menu.style.left=Math.min(e.clientX,window.innerWidth-200)+'px';
+  menu.style.top =Math.min(e.clientY,window.innerHeight-320)+'px';
+});
+document.addEventListener('click',e=>{if(!menu.contains(e.target))hideMenu();});
+document.addEventListener('contextmenu',e=>{if(!pet.contains(e.target)){e.preventDefault();hideMenu();}});
+
+function toggleTop(){alwaysTop=!alwaysTop;document.getElementById('top-mi').textContent='Always on Top '+(alwaysTop?'✓':'');hideMenu();}
+
+// Chat
+function openChat(){
+  const d=document.getElementById('dlg');d.style.display='block';
+  d.style.left=Math.max(0,(window.innerWidth-300)/2)+'px';
+  d.style.top =Math.max(40,(window.innerHeight-160)/2)+'px';
+  setTimeout(()=>document.getElementById('dlg-input').focus(),50);
+}
+function closeChat(){document.getElementById('dlg').style.display='none';document.getElementById('dlg-input').value='';}
+function submitChat(){
+  const t=document.getElementById('dlg-input').value.trim();if(!t)return;
+  closeChat();setPose('peek');
+  showBubble(REPLIES[Math.floor(Math.random()*REPLIES.length)]);
+  setTimeout(()=>setPose('idle_sleepy'),3000);
+}
+document.getElementById('dlg-input').addEventListener('keydown',e=>{if(e.key==='Enter')submitChat();if(e.key==='Escape')closeChat();});
+
+// Dialog drag
+let cd=false,cdx=0,cdy=0;
+document.getElementById('dlg-title').addEventListener('mousedown',e=>{cd=true;const d=document.getElementById('dlg');cdx=e.clientX-d.offsetLeft;cdy=e.clientY-d.offsetTop;});
+document.addEventListener('mousemove',e=>{if(!cd)return;const d=document.getElementById('dlg');d.style.left=Math.max(0,e.clientX-cdx)+'px';d.style.top=Math.max(0,e.clientY-cdy)+'px';});
+document.addEventListener('mouseup',()=>cd=false);
+
+// Quit
+function quit(){setPose('surprised');showBubble('เมี๊ยว… ลาก่อนนะ! 👋',3000);setTimeout(()=>{pet.style.transition='opacity 1.2s';pet.style.opacity='0';},1500);}
+
+// Clock
+function tick(){const n=new Date();document.getElementById('bar-clock').innerHTML=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}<br><span style="font-size:10px">${n.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`;}
+tick();setInterval(tick,10000);
+
+// Idle
+function idle(){setTimeout(()=>{if(!dragging&&document.getElementById('dlg').style.display==='none'){setPose(IDLE_POOL[Math.floor(Math.random()*IDLE_POOL.length)]);}idle();},7000+Math.random()*8000);}
+
+// Boot
+setPose('idle_sleepy');
+idle();
+setTimeout(()=>showBubble('สวัสดีค่ะ~ โปสตี้ยินดีที่ได้รู้จัก! 🐾',5000),500);
+</script>
+</body>
+</html>
