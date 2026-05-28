@@ -1,9 +1,0 @@
-__pycache__/
-*.py[cod]
-.env
-config.json
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
