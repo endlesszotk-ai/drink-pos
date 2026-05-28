@@ -1,0 +1,145 @@
+[
+  {
+    "file": "assets/sprites/idle_sitting_sleepy.png",
+    "source_box": [
+      0,
+      30,
+      285,
+      535
+    ],
+    "size": [
+      285,
+      503
+    ]
+  },
+  {
+    "file": "assets/sprites/peek_head.png",
+    "source_box": [
+      275,
+      170,
+      440,
+      290
+    ],
+    "size": [
+      165,
+      118
+    ]
+  },
+  {
+    "file": "assets/sprites/stand_alert.png",
+    "source_box": [
+      700,
+      45,
+      1010,
+      525
+    ],
+    "size": [
+      310,
+      477
+    ]
+  },
+  {
+    "file": "assets/sprites/sleep_side.png",
+    "source_box": [
+      20,
+      580,
+      435,
+      790
+    ],
+    "size": [
+      407,
+      204
+    ]
+  },
+  {
+    "file": "assets/sprites/surprised_lie.png",
+    "source_box": [
+      545,
+      525,
+      1015,
+      865
+    ],
+    "size": [
+      470,
+      338
+    ]
+  },
+  {
+    "file": "assets/sprites/curl_sleep.png",
+    "source_box": [
+      10,
+      845,
+      325,
+      1055
+    ],
+    "size": [
+      315,
+      205
+    ]
+  },
+  {
+    "file": "assets/sprites/idle_sitting_front.png",
+    "source_box": [
+      325,
+      810,
+      630,
+      1295
+    ],
+    "size": [
+      305,
+      485
+    ]
+  },
+  {
+    "file": "assets/sprites/walk_pose.png",
+    "source_box": [
+      630,
+      875,
+      1010,
+      1295
+    ],
+    "size": [
+      380,
+      416
+    ]
+  },
+  {
+    "file": "assets/sprites/sleep_long_left.png",
+    "source_box": [
+      15,
+      1085,
+      455,
+      1295
+    ],
+    "size": [
+      440,
+      207
+    ]
+  },
+  {
+    "file": "assets/sprites/sleep_low_right.png",
+    "source_box": [
+      640,
+      1325,
+      1000,
+      1530
+    ],
+    "size": [
+      360,
+      199
+    ]
+  },
+  {
+    "file": "assets/sprites/sleep_low_left.png",
+    "source_box": [
+      45,
+      1325,
+      455,
+      1530
+    ],
+    "size": [
+      410,
+      205
+    ]
+  }
+]
