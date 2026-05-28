@@ -8,7 +8,7 @@ DEFAULTS: dict = {
     "x": 120,
     "y": 120,
     "scale": 1.0,
-    "pose": "idle_sleepy",
+    "pose": "idle_sleepy",   # must match a key in pet_widget.SPRITES
     "always_on_top": True,
 }
 

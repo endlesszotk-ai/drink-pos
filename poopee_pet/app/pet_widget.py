@@ -14,20 +14,41 @@ _ROOT = Path(__file__).resolve().parent.parent
 _SPRITE_DIR = _ROOT / "assets" / "sprites"
 
 SPRITES: dict[str, str] = {
-    "idle_sleepy": "idle_sitting_sleepy.png",
-    "idle_front": "idle_sitting_front.png",
-    "walk": "walk_pose.png",
-    "stand": "stand_alert.png",
-    "surprised": "surprised_lie.png",
-    "peek": "peek_head.png",
-    "sleep_side": "sleep_side.png",
-    "curl_sleep": "curl_sleep.png",
-    "sleep_long_left": "sleep_long_left.png",
-    "sleep_low_right": "sleep_low_right.png",
-    "sleep_low_left": "sleep_low_left.png",
+    # walking / upright
+    "walk":         "walk.png",
+    "walk2":        "walk2.png",
+    "walk3":        "walk3.png",
+    "stand":        "stand.png",
+    "idle_front":   "idle_front.png",
+    # sitting
+    "idle_sleepy":  "idle_sleepy.png",
+    "sit_yawn":     "sit_yawn.png",
+    "peek":         "peek.png",
+    "sit_alert":    "sit_alert.png",
+    "sit_side":     "sit_side.png",
+    # crouching
+    "crouch_yawn":  "crouch_yawn.png",
+    "curl_sleep":   "curl_sleep.png",
+    "crouch":       "crouch.png",
+    # lying
+    "sleep_side":       "sleep_side.png",
+    "sleep_stretch":    "sleep_stretch.png",
+    "sleep_long_left":  "sleep_long_left.png",
+    "sleep_low_left":   "sleep_low_left.png",
+    "sleep_low_right":  "sleep_low_right.png",
+    # fully sleeping
+    "surprised":    "surprised.png",
+    "sleep_flat":   "sleep_flat.png",
+    "sleep_roll":   "sleep_roll.png",
+    "sleep_back":   "sleep_back.png",
+    "sleep_curl2":  "sleep_curl2.png",
 }
 
-_IDLE_POOL = ["idle_sleepy", "idle_front", "stand", "walk", "sleep_side"]
+_IDLE_POOL = [
+    "idle_sleepy", "idle_front", "stand", "walk",
+    "sit_alert", "sit_side", "peek", "sleep_side",
+    "walk2", "walk3", "curl_sleep",
+]
 
 
 class PetWidget(QWidget):
